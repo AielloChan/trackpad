@@ -1,0 +1,27 @@
+import Foundation
+#if SWIFT_PACKAGE
+import TrackpadKit
+#endif
+
+public enum TrackpadSessionMessageBuilder {
+    public static func clientHelloData(for configuration: TrackpadConnectionConfiguration) throws -> Data {
+        try SessionFrameLineCodec.encode(
+            .clientHello(
+                ClientHello(
+                    protocolVersion: 1,
+                    deviceId: configuration.deviceId,
+                    deviceName: configuration.deviceName,
+                    pairingCode: configuration.pairingCode
+                )
+            )
+        )
+    }
+
+    public static func inputData(for event: InputEvent) throws -> Data {
+        try SessionFrameLineCodec.encode(.input(event))
+    }
+
+    public static func pingData(for ping: SessionPing) throws -> Data {
+        try SessionFrameLineCodec.encode(.ping(ping))
+    }
+}

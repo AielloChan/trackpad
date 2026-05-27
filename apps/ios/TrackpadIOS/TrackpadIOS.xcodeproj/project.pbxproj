@@ -1,0 +1,402 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		100000000000000000000001 /* TrackpadIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000002 /* TrackpadIOSApp.swift */; };
+		100000000000000000000003 /* TouchSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000004 /* TouchSurfaceView.swift */; };
+		100000000000000000000005 /* TrackpadKit in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000006 /* TrackpadKit */; };
+		200000000000000000000001 /* TrackpadClientModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000002 /* TrackpadClientModel.swift */; };
+		200000000000000000000003 /* ConnectionPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000004 /* ConnectionPanelView.swift */; };
+		200000000000000000000005 /* TouchSurfaceRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000006 /* TouchSurfaceRepresentable.swift */; };
+		200000000000000000000007 /* UIKitTouchSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000008 /* UIKitTouchSurfaceView.swift */; };
+			210000000000000000000001 /* Touch/TouchSurfaceEventMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000002 /* Touch/TouchSurfaceEventMapper.swift */; };
+			210000000000000000000003 /* Transport/TrackpadConnectionConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000004 /* Transport/TrackpadConnectionConfiguration.swift */; };
+			210000000000000000000005 /* Transport/TrackpadSessionMessageBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000006 /* Transport/TrackpadSessionMessageBuilder.swift */; };
+			210000000000000000000007 /* Transport/TrackpadHostClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000008 /* Transport/TrackpadHostClient.swift */; };
+			210000000000000000000010 /* Touch/InputEventTuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000011 /* Touch/InputEventTuning.swift */; };
+			210000000000000000000012 /* Touch/ScrollMomentumSeedTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000013 /* Touch/ScrollMomentumSeedTracker.swift */; };
+			21000000000000000000000A /* Discovery/TrackpadHostAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21000000000000000000000B /* Discovery/TrackpadHostAddress.swift */; };
+		21000000000000000000000C /* Discovery/DiscoveredTrackpadHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21000000000000000000000D /* Discovery/DiscoveredTrackpadHost.swift */; };
+		21000000000000000000000E /* Discovery/BonjourTrackpadHostBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21000000000000000000000F /* Discovery/BonjourTrackpadHostBrowser.swift */; };
+		220000000000000000000001 /* TrackpadProtocol/InputEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 220000000000000000000002 /* TrackpadProtocol/InputEvent.swift */; };
+		220000000000000000000003 /* TrackpadProtocol/SessionFrame.swift in Sources */ = {isa = PBXBuildFile; fileRef = 220000000000000000000004 /* TrackpadProtocol/SessionFrame.swift */; };
+		220000000000000000000005 /* TrackpadTransport/SessionFrameLineCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 220000000000000000000006 /* TrackpadTransport/SessionFrameLineCodec.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		100000000000000000000002 /* TrackpadIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackpadIOSApp.swift; sourceTree = "<group>"; };
+		100000000000000000000004 /* TouchSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchSurfaceView.swift; sourceTree = "<group>"; };
+		100000000000000000000007 /* TrackpadIOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TrackpadIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		10000000000000000000001A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		200000000000000000000002 /* TrackpadClientModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackpadClientModel.swift; sourceTree = "<group>"; };
+		200000000000000000000004 /* ConnectionPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionPanelView.swift; sourceTree = "<group>"; };
+		200000000000000000000006 /* TouchSurfaceRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchSurfaceRepresentable.swift; sourceTree = "<group>"; };
+		200000000000000000000008 /* UIKitTouchSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIKitTouchSurfaceView.swift; sourceTree = "<group>"; };
+			210000000000000000000002 /* Touch/TouchSurfaceEventMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Touch/TouchSurfaceEventMapper.swift; sourceTree = "<group>"; };
+			210000000000000000000004 /* Transport/TrackpadConnectionConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transport/TrackpadConnectionConfiguration.swift; sourceTree = "<group>"; };
+			210000000000000000000006 /* Transport/TrackpadSessionMessageBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transport/TrackpadSessionMessageBuilder.swift; sourceTree = "<group>"; };
+			210000000000000000000008 /* Transport/TrackpadHostClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transport/TrackpadHostClient.swift; sourceTree = "<group>"; };
+			210000000000000000000011 /* Touch/InputEventTuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Touch/InputEventTuning.swift; sourceTree = "<group>"; };
+			210000000000000000000013 /* Touch/ScrollMomentumSeedTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Touch/ScrollMomentumSeedTracker.swift; sourceTree = "<group>"; };
+		21000000000000000000000B /* Discovery/TrackpadHostAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Discovery/TrackpadHostAddress.swift; sourceTree = "<group>"; };
+		21000000000000000000000D /* Discovery/DiscoveredTrackpadHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Discovery/DiscoveredTrackpadHost.swift; sourceTree = "<group>"; };
+		21000000000000000000000F /* Discovery/BonjourTrackpadHostBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Discovery/BonjourTrackpadHostBrowser.swift; sourceTree = "<group>"; };
+		220000000000000000000002 /* TrackpadProtocol/InputEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackpadProtocol/InputEvent.swift; sourceTree = "<group>"; };
+		220000000000000000000004 /* TrackpadProtocol/SessionFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackpadProtocol/SessionFrame.swift; sourceTree = "<group>"; };
+		220000000000000000000006 /* TrackpadTransport/SessionFrameLineCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackpadTransport/SessionFrameLineCodec.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		100000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000005 /* TrackpadKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		100000000000000000000009 = {
+			isa = PBXGroup;
+			children = (
+				10000000000000000000000A /* TrackpadIOS */,
+				10000000000000000000000B /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		10000000000000000000000A /* TrackpadIOS */ = {
+			isa = PBXGroup;
+			children = (
+				10000000000000000000000C /* App */,
+				10000000000000000000001A /* Info.plist */,
+				210000000000000000000009 /* ../../TrackpadIOSCore/Sources/TrackpadIOSCore */,
+				220000000000000000000007 /* ../../../../packages/TrackpadKit/Sources */,
+				10000000000000000000000D /* UI */,
+			);
+			path = TrackpadIOS;
+			sourceTree = "<group>";
+		};
+		10000000000000000000000B /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000007 /* TrackpadIOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		10000000000000000000000C /* App */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000002 /* TrackpadIOSApp.swift */,
+				200000000000000000000002 /* TrackpadClientModel.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		10000000000000000000000D /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				20000000000000000000000B /* Connection */,
+				10000000000000000000000E /* TouchSurface */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		10000000000000000000000E /* TouchSurface */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000004 /* TouchSurfaceView.swift */,
+				200000000000000000000006 /* TouchSurfaceRepresentable.swift */,
+				200000000000000000000008 /* UIKitTouchSurfaceView.swift */,
+			);
+			path = TouchSurface;
+			sourceTree = "<group>";
+		};
+		20000000000000000000000B /* Connection */ = {
+			isa = PBXGroup;
+			children = (
+				200000000000000000000004 /* ConnectionPanelView.swift */,
+			);
+			path = Connection;
+			sourceTree = "<group>";
+		};
+		210000000000000000000009 /* ../../TrackpadIOSCore/Sources/TrackpadIOSCore */ = {
+			isa = PBXGroup;
+			children = (
+				21000000000000000000000B /* Discovery/TrackpadHostAddress.swift */,
+					21000000000000000000000D /* Discovery/DiscoveredTrackpadHost.swift */,
+					21000000000000000000000F /* Discovery/BonjourTrackpadHostBrowser.swift */,
+					210000000000000000000002 /* Touch/TouchSurfaceEventMapper.swift */,
+					210000000000000000000011 /* Touch/InputEventTuning.swift */,
+					210000000000000000000013 /* Touch/ScrollMomentumSeedTracker.swift */,
+					210000000000000000000004 /* Transport/TrackpadConnectionConfiguration.swift */,
+				210000000000000000000006 /* Transport/TrackpadSessionMessageBuilder.swift */,
+				210000000000000000000008 /* Transport/TrackpadHostClient.swift */,
+			);
+			path = ../../TrackpadIOSCore/Sources/TrackpadIOSCore;
+			sourceTree = "<group>";
+		};
+		220000000000000000000007 /* ../../../../packages/TrackpadKit/Sources */ = {
+			isa = PBXGroup;
+			children = (
+				220000000000000000000002 /* TrackpadProtocol/InputEvent.swift */,
+				220000000000000000000004 /* TrackpadProtocol/SessionFrame.swift */,
+				220000000000000000000006 /* TrackpadTransport/SessionFrameLineCodec.swift */,
+			);
+			path = ../../../../packages/TrackpadKit/Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		10000000000000000000000F /* TrackpadIOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 100000000000000000000010 /* Build configuration list for PBXNativeTarget "TrackpadIOS" */;
+			buildPhases = (
+				100000000000000000000011 /* Sources */,
+				100000000000000000000008 /* Frameworks */,
+				100000000000000000000012 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TrackpadIOS;
+			packageProductDependencies = (
+				100000000000000000000006 /* TrackpadKit */,
+			);
+			productName = TrackpadIOS;
+			productReference = 100000000000000000000007 /* TrackpadIOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		100000000000000000000013 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					10000000000000000000000F = {
+						CreatedOnToolsVersion = 26.3;
+					};
+				};
+			};
+			buildConfigurationList = 100000000000000000000014 /* Build configuration list for PBXProject "TrackpadIOS" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 100000000000000000000009;
+			packageReferences = (
+				100000000000000000000015 /* XCLocalSwiftPackageReference "../../../packages/TrackpadKit" */,
+			);
+			productRefGroup = 10000000000000000000000B /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				10000000000000000000000F /* TrackpadIOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		100000000000000000000012 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		100000000000000000000011 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000001 /* TrackpadIOSApp.swift in Sources */,
+				100000000000000000000003 /* TouchSurfaceView.swift in Sources */,
+				200000000000000000000001 /* TrackpadClientModel.swift in Sources */,
+				200000000000000000000003 /* ConnectionPanelView.swift in Sources */,
+				200000000000000000000005 /* TouchSurfaceRepresentable.swift in Sources */,
+				200000000000000000000007 /* UIKitTouchSurfaceView.swift in Sources */,
+				210000000000000000000001 /* Touch/TouchSurfaceEventMapper.swift in Sources */,
+				210000000000000000000003 /* Transport/TrackpadConnectionConfiguration.swift in Sources */,
+				210000000000000000000005 /* Transport/TrackpadSessionMessageBuilder.swift in Sources */,
+				210000000000000000000007 /* Transport/TrackpadHostClient.swift in Sources */,
+					21000000000000000000000A /* Discovery/TrackpadHostAddress.swift in Sources */,
+					21000000000000000000000C /* Discovery/DiscoveredTrackpadHost.swift in Sources */,
+					21000000000000000000000E /* Discovery/BonjourTrackpadHostBrowser.swift in Sources */,
+					210000000000000000000010 /* Touch/InputEventTuning.swift in Sources */,
+					210000000000000000000012 /* Touch/ScrollMomentumSeedTracker.swift in Sources */,
+					220000000000000000000001 /* TrackpadProtocol/InputEvent.swift in Sources */,
+				220000000000000000000003 /* TrackpadProtocol/SessionFrame.swift in Sources */,
+				220000000000000000000005 /* TrackpadTransport/SessionFrameLineCodec.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		100000000000000000000016 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.2;
+			};
+			name = Debug;
+		};
+		100000000000000000000017 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.2;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		100000000000000000000018 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = B4CTN7HQTZ;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TrackpadIOS/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.trackpad.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.2;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		100000000000000000000019 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = B4CTN7HQTZ;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TrackpadIOS/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.trackpad.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.2;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		100000000000000000000010 /* Build configuration list for PBXNativeTarget "TrackpadIOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000018 /* Debug */,
+				100000000000000000000019 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		100000000000000000000014 /* Build configuration list for PBXProject "TrackpadIOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000016 /* Debug */,
+				100000000000000000000017 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		100000000000000000000015 /* XCLocalSwiftPackageReference "../../../packages/TrackpadKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../../packages/TrackpadKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		100000000000000000000006 /* TrackpadKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 100000000000000000000015 /* XCLocalSwiftPackageReference "../../../packages/TrackpadKit" */;
+			productName = TrackpadKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 100000000000000000000013 /* Project object */;
+}

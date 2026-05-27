@@ -1,0 +1,105 @@
+# TODOs
+
+This file tracks active project progress. Keep it current whenever a task starts, completes, or changes scope.
+
+## Current Phase: iOS Client MVP
+
+- [x] Create initial repository documentation.
+- [x] Create AI agent instructions.
+- [x] Create initial implementation plan.
+- [x] Create architecture and decision docs.
+- [x] Create planned top-level directories.
+- [x] Initialize `packages/TrackpadKit` as a Swift Package.
+- [x] Define the first protocol models.
+- [x] Initialize the macOS host spike as an Xcode-openable Swift Package executable.
+- [x] Build the macOS host input-injection spike.
+- [x] Create native iOS and macOS Xcode app projects.
+- [x] Prepare macOS Accessibility permission prompt and CGEvent debug actions.
+- [x] Manually verify macOS Accessibility permission and pointer CGEvent behavior after local authorization.
+- [ ] Manually verify click and scroll CGEvent behavior in a safe UI area.
+- [x] macOS host advertises a Bonjour TCP service.
+- [x] macOS host receives JSON Lines input events over LAN.
+- [x] macOS host maps received events into input injection.
+- [x] macOS app exposes server start/stop and runtime status.
+- [x] macOS host requires a pairing hello before processing input events.
+- [x] macOS app displays a current pairing code.
+- [x] Shared transport exposes reusable session JSON Lines encoding.
+- [x] Create `TrackpadIOSCore` package for reusable iOS client logic.
+- [x] iOS touch mapper converts single-finger movement into pointer move events.
+- [x] Implement iOS app model, manual connection panel, and UIKit touch capture.
+- [x] iOS app can manually connect to macOS host with IP, port, and pairing code.
+- [x] iOS app sends single-finger movement events to macOS.
+- [x] iOS app discovers macOS host over Bonjour and can connect to the discovered service.
+- [x] iOS app maps single-finger tap to left click.
+- [x] iOS app keeps one-finger hold-and-move as pointer movement.
+- [x] iOS app maps tap-then-quick-second-press movement to left-button drag.
+- [x] iOS app maps two-finger tap to right click.
+- [x] iOS app maps two-finger movement to scroll events.
+- [x] iOS app displays client-to-host latency in the connected bar and refreshes it once per second.
+- [x] iOS app displays touch sample rate and sent input-event rate while connected.
+- [x] iOS client coalesces high-frequency input frames through a single send buffer.
+- [x] LAN TCP transport uses no-delay parameters for the current Apple-platform MVP.
+- [x] macOS host injects live dragged mouse events while the left button is held down.
+- [x] iOS two-finger scroll release no longer starts a one-finger tap state.
+- [x] iOS two-finger scroll release schedules first-pass decaying momentum scroll events.
+- [x] Shared scroll protocol carries optional momentum phase for trackpad-like inertial scrolling.
+- [x] macOS scroll injection sets continuous scroll, scroll phase, and momentum phase fields.
+- [x] iOS scroll momentum starts from recent two-finger scroll velocity instead of only final delta.
+- [x] iOS connected bar exposes pointer speed and scroll momentum amount sliders.
+- [x] iOS pointer speed tuning scales pointer movement events before transport.
+- [x] iOS scroll momentum uses longer deceleration defaults and client-side amount tuning.
+- [x] iOS suppresses accidental single-finger taps for 80 ms after two-finger scroll release.
+- [x] iOS tap-then-second-press drag interval defaults to 140 ms after real-device tuning.
+- [x] iOS pointer speed defaults to 2.1x after real-device tuning.
+- [x] iOS connected bar exposes tap duration, drag interval, and scroll guard timing sliders.
+- [x] iOS tap-drag candidate state no longer suppresses small pointer movements before the drag threshold.
+- [x] macOS host maps consecutive tap events to click counts for double-click selection.
+- [x] macOS injected button events set CoreGraphics mouse click state.
+- [x] iOS scroll momentum seed preserves the dominant scroll axis when release samples contain cross-axis jitter.
+- [x] macOS host writes persistent diagnostic logs for connection, pairing, input, and command mapping.
+
+## Near-Term Milestones
+
+- [x] macOS host app can request Accessibility permission.
+- [x] macOS host app can move the pointer with a local debug action.
+- [x] macOS host app has click and scroll local debug actions.
+- [x] Shared protocol supports pointer move, button, tap, and scroll events.
+- [x] LAN server receives a local test event and maps it to input injection.
+- [x] iOS app displays a black full-screen touch surface.
+- [x] iOS app sends single-finger movement events to macOS.
+- [x] Bonjour discovery connects iOS to macOS on the same LAN.
+- [x] Basic tap, drag, right-click, and scroll gestures are normalized on iOS.
+- [x] Protocol-level ping/pong latency monitor is implemented over the MVP TCP session.
+- [x] First-pass input stream optimization avoids one async task per touch-move callback.
+- [x] Real-device gesture polish covers live drag injection, two-finger scroll end handling, and first-pass scroll momentum.
+- [x] First-pass scroll fidelity upgrade preserves momentum semantics from iOS through macOS CGEvent injection.
+
+## Verification Blockers
+
+- [x] Grant Accessibility permission locally for `TrackpadHost` or `TrackpadHostApp`.
+- [x] Re-run `swift run TrackpadHost status` from `apps/macos/TrackpadHost` and confirm it prints `Accessibility trusted: true`.
+- [x] Run `swift run TrackpadHost move-test` from `apps/macos/TrackpadHost` and confirm the pointer moves.
+- [x] Run `swift run TrackpadHost serve` and `swift run TrackpadHost send-sample-event` to verify LAN event injection.
+- [ ] Run click and scroll debug actions only in a safe empty area.
+- [x] Build `TrackpadIOS` for the booted simulator with command-line target build.
+- [ ] Fix `TrackpadIOS` scheme destination discovery so `xcodebuild -showdestinations` lists installed simulators.
+- [ ] Manually compare touch sample Hz, sent event Hz, RTT, and perceived pointer smoothness on a real device.
+- [ ] Manually verify live window dragging, two-finger scroll release, and scroll momentum on a real iPhone/iPad.
+- [ ] Manually compare velocity-based momentum and macOS scroll phase behavior against native trackpad scrolling.
+- [ ] Manually tune pointer speed and scroll momentum amount on a real iPhone/iPad while connected to macOS.
+- [ ] Manually verify two-finger scroll release no longer causes accidental left click on a real iPhone/iPad.
+- [ ] Manually tune tap duration, drag interval, and scroll guard timing on a real iPhone/iPad.
+- [ ] Manually verify double-tap on iOS selects text or triggers native macOS double-click behavior.
+- [ ] Manually verify vertical scroll momentum is preserved when two-finger release contains small horizontal drift.
+
+## Deferred
+
+- [ ] Pairing with QR code or short code.
+- [ ] Compact binary input-event framing for high-frequency pointer and scroll events.
+- [ ] Device key persistence and trust revocation.
+- [ ] WebRTC DataChannel transport.
+- [ ] STUN/TURN infrastructure.
+- [ ] Coordinator service for remote device discovery.
+- [ ] Relay fallback service.
+- [ ] Android client.
+- [ ] Windows host.

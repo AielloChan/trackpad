@@ -1,0 +1,43 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Xcode and Swift build output
+.build/
+build/
+DerivedData/
+*.dSYM/
+*.dSYM.zip
+*.ipa
+*.xcarchive
+*.result
+*.xcresult
+
+# SwiftPM local state
+.swiftpm/configuration/
+.swiftpm/xcode/xcuserdata/
+
+# Generated module/build caches
+ModuleCache.noindex/
+SDKStatCaches.noindex/
+SwiftExplicitPrecompiledModules/
+GeneratedModuleMaps*/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+.netrc
+
+# Editor and temporary files
+*.swp
+*.swo
+*.tmp
+*.temp
+*~
