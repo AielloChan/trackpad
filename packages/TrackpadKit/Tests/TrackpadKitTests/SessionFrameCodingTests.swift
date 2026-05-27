@@ -60,3 +60,32 @@ import Testing
 
     #expect(decoded == frame)
 }
+
+@Test func hostLogRequestFrameRoundTripsThroughJSON() throws {
+    let frame = SessionFrame.hostLogRequest(
+        HostLogRequest(id: "request-1", requestedAtNanos: 1_000, reason: "debug pointer jump")
+    )
+
+    let data = try JSONEncoder().encode(frame)
+    let decoded = try JSONDecoder().decode(SessionFrame.self, from: data)
+
+    #expect(decoded == frame)
+}
+
+@Test func clientLogUploadFrameRoundTripsThroughJSON() throws {
+    let frame = SessionFrame.clientLogUpload(
+        ClientLogUpload(
+            requestId: "request-1",
+            deviceId: "ios-device-1",
+            deviceName: "iPad",
+            createdAtNanos: 2_000,
+            content: "######### ios.client example",
+            truncated: false
+        )
+    )
+
+    let data = try JSONEncoder().encode(frame)
+    let decoded = try JSONDecoder().decode(SessionFrame.self, from: data)
+
+    #expect(decoded == frame)
+}

@@ -20,7 +20,12 @@ final class UIKitTouchSurfaceView: UIView {
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        onTouchMoved(activeContacts(from: event))
+        if forwardSingleFingerCoalescedMoves(touches, event: event) {
+            return
+        }
+
+        let contacts = activeContacts(from: event)
+        onTouchMoved(contacts)
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -38,11 +43,42 @@ final class UIKitTouchSurfaceView: UIView {
                 return nil
             }
 
-            let point = touch.location(in: self)
-            return TouchContact(
-                id: ObjectIdentifier(touch).hashValue,
-                point: TouchPoint(x: point.x, y: point.y)
-            )
+            return contact(from: touch, id: ObjectIdentifier(touch).hashValue)
         }
     }
+
+    private func forwardSingleFingerCoalescedMoves(_ touches: Set<UITouch>, event: UIEvent?) -> Bool {
+        guard let event,
+              touches.count == 1,
+              let touch = touches.first,
+              activeTouchCount(from: event) == 1 else {
+            return false
+        }
+
+        guard let samples = event.coalescedTouches(for: touch),
+              samples.count > 1 else {
+            return false
+        }
+
+        let id = ObjectIdentifier(touch).hashValue
+        for sample in samples {
+            onTouchMoved([contact(from: sample, id: id)])
+        }
+        return true
+    }
+
+    private func activeTouchCount(from event: UIEvent) -> Int {
+        event.allTouches?.filter { touch in
+            touch.phase != .ended && touch.phase != .cancelled
+        }.count ?? 0
+    }
+
+    private func contact(from touch: UITouch, id: Int) -> TouchContact {
+        let point = touch.preciseLocation(in: self)
+        return TouchContact(
+            id: id,
+            point: TouchPoint(x: point.x, y: point.y)
+        )
+    }
+
 }

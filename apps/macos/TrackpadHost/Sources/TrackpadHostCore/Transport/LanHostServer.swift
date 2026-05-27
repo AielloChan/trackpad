@@ -11,11 +11,12 @@ public final class LanHostServer: @unchecked Sendable {
     private let pairingPolicy: PairingPolicy
     private let statusHandler: StatusHandler
     private let logger: any HostLogging
+    private let clientLogUploadWriter: ClientLogUploadWriter
     private let queue = DispatchQueue(label: "trackpad.host.lan-server")
 
     private var listener: NWListener?
     private var connections: [UUID: NWConnection] = [:]
-    private var codecs: [UUID: InputEventLineCodec] = [:]
+    private var codecs: [UUID: SessionStreamCodec] = [:]
     private var authorizedConnections: Set<UUID> = []
     private var status = HostRuntimeStatus.stopped
 
@@ -24,6 +25,7 @@ public final class LanHostServer: @unchecked Sendable {
         serviceName: String = HostDefaults.bonjourName,
         pairingPolicy: PairingPolicy,
         processor: HostEventProcessor,
+        clientLogUploadWriter: ClientLogUploadWriter = ClientLogUploadWriter(),
         logger: any HostLogging = DisabledHostLogger(),
         statusHandler: @escaping StatusHandler = { _ in }
     ) {
@@ -31,6 +33,7 @@ public final class LanHostServer: @unchecked Sendable {
         self.serviceName = serviceName
         self.pairingPolicy = pairingPolicy
         self.processor = processor
+        self.clientLogUploadWriter = clientLogUploadWriter
         self.statusHandler = statusHandler
         self.logger = logger
     }
@@ -83,6 +86,21 @@ public final class LanHostServer: @unchecked Sendable {
         }
     }
 
+    public func requestClientLogUpload(reason: String = "host requested diagnostics") {
+        queue.async {
+            let request = HostLogRequest(
+                id: UUID().uuidString,
+                requestedAtNanos: Self.currentTimestampNanos(),
+                reason: reason
+            )
+            let connectionIDs = Array(self.authorizedConnections)
+            self.logger.info(category: "client-log", "request id=\(request.id) connections=\(connectionIDs.count) reason=\(reason)")
+            for id in connectionIDs {
+                self.send(.hostLogRequest(request), to: id)
+            }
+        }
+    }
+
     private func handleListenerState(_ state: NWListener.State) {
         queue.async {
             switch state {
@@ -107,7 +125,7 @@ public final class LanHostServer: @unchecked Sendable {
         queue.async {
             let id = UUID()
             self.connections[id] = connection
-            self.codecs[id] = InputEventLineCodec()
+            self.codecs[id] = SessionStreamCodec()
             self.logger.info(category: "connection", "accepted id=\(id)")
             self.updateStatus(state: self.status.state)
 
@@ -149,17 +167,17 @@ public final class LanHostServer: @unchecked Sendable {
 
     private func handle(_ data: Data, from id: UUID) -> Bool {
         do {
-            var codec = codecs[id] ?? InputEventLineCodec()
-            let frames = try codec.append(data)
+            var codec = codecs[id] ?? SessionStreamCodec()
+            let messages = try codec.append(data)
             codecs[id] = codec
 
-            for frame in frames {
-                guard handle(frame, from: id) else {
+            for message in messages {
+                guard handle(message, from: id) else {
                     return false
                 }
             }
 
-            if !frames.isEmpty {
+            if !messages.isEmpty {
                 updateStatus(state: status.state)
             }
             return true
@@ -167,6 +185,15 @@ public final class LanHostServer: @unchecked Sendable {
             logger.error(category: "transport", "decode failed connection=\(id) error=\(String(describing: error))")
             updateStatus(state: .failed, lastError: String(describing: error))
             return false
+        }
+    }
+
+    private func handle(_ message: SessionStreamMessage, from id: UUID) -> Bool {
+        switch message {
+        case .frame(let frame):
+            return handle(frame, from: id)
+        case .input(let event):
+            return handleInput(event, from: id)
         }
     }
 
@@ -185,15 +212,7 @@ public final class LanHostServer: @unchecked Sendable {
                 return false
             }
         case .input(let event):
-            guard authorizedConnections.contains(id) else {
-                logger.warning(category: "input", "rejected unpaired input connection=\(id) sequence=\(event.sequenceNumber)")
-                updateStatus(state: status.state, lastError: "input received before pairing")
-                return false
-            }
-            logger.debug(category: "input", "received connection=\(id) sequence=\(event.sequenceNumber)")
-            processor.handle(event)
-            updateStatus(state: status.state, clearLastError: true)
-            return true
+            return handleInput(event, from: id)
         case .ping(let ping):
             guard authorizedConnections.contains(id) else {
                 logger.warning(category: "latency", "rejected unpaired ping connection=\(id) id=\(ping.id)")
@@ -217,7 +236,38 @@ public final class LanHostServer: @unchecked Sendable {
             return true
         case .rejected:
             return true
+        case .hostLogRequest:
+            return true
+        case .clientLogUpload(let upload):
+            guard authorizedConnections.contains(id) else {
+                logger.warning(category: "client-log", "rejected unpaired upload connection=\(id) requestId=\(upload.requestId)")
+                updateStatus(state: status.state, lastError: "client log upload received before pairing")
+                return false
+            }
+
+            do {
+                let url = try clientLogUploadWriter.write(upload)
+                logger.info(category: "client-log", "received connection=\(id) requestId=\(upload.requestId) path=\(url.path) bytes=\(upload.content.utf8.count) truncated=\(upload.truncated)")
+                updateStatus(state: status.state, clearLastError: true)
+                return true
+            } catch {
+                logger.error(category: "client-log", "write failed connection=\(id) requestId=\(upload.requestId) error=\(String(describing: error))")
+                updateStatus(state: status.state, lastError: String(describing: error))
+                return true
+            }
         }
+    }
+
+    private func handleInput(_ event: InputEvent, from id: UUID) -> Bool {
+        guard authorizedConnections.contains(id) else {
+            logger.warning(category: "input", "rejected unpaired input connection=\(id) sequence=\(event.sequenceNumber)")
+            updateStatus(state: status.state, lastError: "input received before pairing")
+            return false
+        }
+        logger.debug(category: "input", "received connection=\(id) sequence=\(event.sequenceNumber)")
+        processor.handle(event)
+        updateStatus(state: status.state, clearLastError: true)
+        return true
     }
 
     private func send(_ frame: SessionFrame, to id: UUID) {

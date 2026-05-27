@@ -10,10 +10,11 @@ The protocol is the product boundary. Platform apps should convert local details
 iOS touch
   -> gesture normalization
   -> TrackpadProtocol.InputEvent
+  -> HID-like binary InputReport for high-frequency input
   -> Transport
 
 macOS Transport
-  -> TrackpadProtocol.SessionFrame
+  -> JSON SessionFrame control messages or binary InputReport input messages
   -> pairing gate
   -> TrackpadProtocol.InputEvent
   -> input mapper
@@ -78,10 +79,15 @@ Raw touch streaming can be added later, but the first MVP should prefer semantic
 The transport interface should support multiple implementations:
 
 - LAN direct connection with Bonjour discovery.
+- Public-API cable-like TCP paths when iOS and macOS expose a wired network route.
 - Future WebRTC DataChannel transport for P2P remote control.
 - Future relay transport for difficult NAT environments.
 
 Business logic should depend on the transport interface, not a specific network implementation.
+
+The current Apple-platform app first attempts a short wired-only TCP connection with `NWParameters.requiredInterfaceType = .wiredEthernet`, then falls back to the default TCP path. It also observes the active `NWConnection` path and treats `.wiredEthernet` as a cable-like candidate. Live transport migration after a session is already connected is deferred until the protocol supports session resume and input-state handoff.
+
+High-frequency pointer, button, tap, and scroll input now uses a compact fixed-size binary report inspired by HID reports. Low-frequency session control messages still use JSON Lines so pairing, latency, and diagnostics remain easy to inspect. The macOS host accepts both message families on the same TCP stream after pairing.
 
 ## Phases
 

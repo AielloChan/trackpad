@@ -81,6 +81,40 @@ import TrackpadKit
     #expect(performer.commands == [.move(dx: 9, dy: -6)])
 }
 
+@Test func lanHostServerProcessesBinaryInputReportAfterValidPairing() throws {
+    let port = UInt16.random(in: 45_000...55_000)
+    let performer = LanServerRecordingInputPerformer()
+    let processor = HostEventProcessor(performer: performer)
+    let statuses = HostStatusRecorder()
+    let server = LanHostServer(
+        port: port,
+        pairingPolicy: PairingPolicy(requiredCode: PairingCode("654321")),
+        processor: processor,
+        statusHandler: statuses.record
+    )
+    try server.start()
+    defer {
+        server.stop()
+    }
+
+    #expect(statuses.waitForStatus(where: { $0.state == .running }) != nil)
+
+    let event = InputEvent(
+        sequenceNumber: 102,
+        timestampNanos: 1_002,
+        kind: .pointerMove(PointerMoveEvent(dx: 4.5, dy: -3.25))
+    )
+    try InputEventClient.send(
+        event,
+        port: port,
+        pairingCode: PairingCode("654321"),
+        timeout: 2
+    )
+
+    #expect(statuses.waitForStatus(where: { $0.handledEventCount == 1 && $0.lastError == nil }) != nil)
+    #expect(performer.commands == [.move(dx: 4.5, dy: -3.25)])
+}
+
 @Test func lanHostServerRepliesToAuthorizedPingWithPong() throws {
     let port = UInt16.random(in: 45_000...55_000)
     let performer = LanServerRecordingInputPerformer()
@@ -117,6 +151,44 @@ import TrackpadKit
     #expect(frames == [
         .pong(SessionPong(id: 9, clientSentNanos: 1_000, hostReceivedNanos: frames.first?.pongHostReceivedNanos ?? 0)),
     ])
+}
+
+@Test func lanHostServerRequestsAndPersistsClientLogUpload() throws {
+    let port = UInt16.random(in: 45_000...55_000)
+    let performer = LanServerRecordingInputPerformer()
+    let processor = HostEventProcessor(performer: performer)
+    let statuses = HostStatusRecorder()
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let server = LanHostServer(
+        port: port,
+        pairingPolicy: PairingPolicy(requiredCode: PairingCode("654321")),
+        processor: processor,
+        clientLogUploadWriter: ClientLogUploadWriter(directoryURL: directory),
+        statusHandler: statuses.record
+    )
+    try server.start()
+    defer {
+        server.stop()
+    }
+
+    #expect(statuses.waitForStatus(where: { $0.state == .running }) != nil)
+
+    let client = ClientLogUploadRoundTripClient(port: port)
+    try client.start()
+    defer {
+        client.stop()
+    }
+
+    #expect(statuses.waitForStatus(where: { $0.authorizedConnectionCount == 1 }) != nil)
+
+    server.requestClientLogUpload(reason: "test")
+
+    let uploadedURL = try #require(waitForUploadedClientLog(in: directory))
+    let content = try String(contentsOf: uploadedURL, encoding: .utf8)
+    #expect(content.contains("requestId="))
+    #expect(content.contains("deviceId=test-client"))
+    #expect(content.contains("######### ios.client uploaded from test"))
 }
 
 private final class HostStatusRecorder: @unchecked Sendable {
@@ -157,6 +229,115 @@ private final class LanServerRecordingInputPerformer: MacInputPerforming {
     func perform(_ command: MacInputCommand) {
         commands.append(command)
     }
+}
+
+private final class ClientLogUploadRoundTripClient: @unchecked Sendable {
+    private let port: UInt16
+    private let queue = DispatchQueue(label: "trackpad.host.tests.client-log-upload-client")
+    private let ready = DispatchGroup()
+    private var connection: NWConnection?
+    private var codec = InputEventLineCodec()
+
+    init(port: UInt16) {
+        self.port = port
+        ready.enter()
+    }
+
+    func start() throws {
+        let connection = NWConnection(
+            host: "127.0.0.1",
+            port: NWEndpoint.Port(rawValue: port)!,
+            using: .tcp
+        )
+        self.connection = connection
+
+        connection.stateUpdateHandler = { [weak self] state in
+            guard let self else {
+                return
+            }
+
+            if case .ready = state {
+                do {
+                    try self.send(
+                        .clientHello(
+                            ClientHello(
+                                protocolVersion: 1,
+                                deviceId: "test-client",
+                                deviceName: "Test Client",
+                                pairingCode: "654321"
+                            )
+                        )
+                    )
+                    self.receiveNext()
+                    self.ready.leave()
+                } catch {
+                    self.ready.leave()
+                }
+            } else if case .failed = state {
+                self.ready.leave()
+            }
+        }
+        connection.start(queue: queue)
+
+        if ready.wait(timeout: .now() + 2) == .timedOut {
+            throw InputEventClientError.timeout
+        }
+    }
+
+    func stop() {
+        connection?.cancel()
+    }
+
+    private func receiveNext() {
+        connection?.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [weak self] data, _, isComplete, error in
+            guard let self, error == nil, !isComplete else {
+                return
+            }
+
+            if let data, !data.isEmpty,
+               let frames = try? self.codec.append(data) {
+                for frame in frames {
+                    if case .hostLogRequest(let request) = frame {
+                        try? self.send(
+                            .clientLogUpload(
+                                ClientLogUpload(
+                                    requestId: request.id,
+                                    deviceId: "test-client",
+                                    deviceName: "Test Client",
+                                    createdAtNanos: 2_000,
+                                    content: "######### ios.client uploaded from test",
+                                    truncated: false
+                                )
+                            )
+                        )
+                    }
+                }
+            }
+
+            self.receiveNext()
+        }
+    }
+
+    private func send(_ frame: SessionFrame) throws {
+        let data = try SessionFrameRoundTripClient.encodeFrame(frame)
+        connection?.send(content: data, completion: .contentProcessed { _ in })
+    }
+}
+
+private func waitForUploadedClientLog(in directory: URL, timeout: TimeInterval = 2) -> URL? {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if let urls = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        ), let first = urls.first {
+            return first
+        }
+
+        Thread.sleep(forTimeInterval: 0.01)
+    }
+
+    return nil
 }
 
 private enum SessionFrameRoundTripClient {
@@ -219,7 +400,7 @@ private enum SessionFrameRoundTripClient {
         }
     }
 
-    private static func encodeFrame(_ frame: SessionFrame) throws -> Data {
+    fileprivate static func encodeFrame(_ frame: SessionFrame) throws -> Data {
         var data = try JSONEncoder().encode(frame)
         data.append(UInt8(ascii: "\n"))
         return data

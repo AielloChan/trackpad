@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ConnectionPanelView: View {
     @ObservedObject var model: TrackpadClientModel
+    @State private var isShowingQRCodeScanner = false
 
     var body: some View {
         VStack(spacing: 10) {
@@ -38,6 +39,11 @@ struct ConnectionPanelView: View {
 
                 Spacer()
 
+                Button(action: { isShowingQRCodeScanner = true }) {
+                    Label("Scan QR", systemImage: "qrcode.viewfinder")
+                }
+                .buttonStyle(.bordered)
+
                 Button(action: { model.connect() }) {
                     Text(connectButtonTitle)
                         .frame(minWidth: 86)
@@ -50,6 +56,18 @@ struct ConnectionPanelView: View {
         .background(.thinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .padding(.horizontal, 14)
+        .sheet(isPresented: $isShowingQRCodeScanner) {
+            QRCodeScannerView(
+                onCodeScanned: { message in
+                    isShowingQRCodeScanner = false
+                    model.connect(usingQRCodeMessage: message)
+                },
+                onCancel: {
+                    isShowingQRCodeScanner = false
+                }
+            )
+            .ignoresSafeArea()
+        }
     }
 
     private var statusText: Text {

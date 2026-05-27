@@ -18,10 +18,14 @@ public enum TrackpadSessionMessageBuilder {
     }
 
     public static func inputData(for event: InputEvent) throws -> Data {
-        try SessionFrameLineCodec.encode(.input(event))
+        try InputReportBinaryCodec.encode(InputReport(event: event))
     }
 
     public static func pingData(for ping: SessionPing) throws -> Data {
         try SessionFrameLineCodec.encode(.ping(ping))
+    }
+
+    public static func clientLogUploadData(for upload: ClientLogUpload) throws -> Data {
+        try SessionFrameLineCodec.encode(.clientLogUpload(upload))
     }
 }

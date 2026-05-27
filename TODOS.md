@@ -57,6 +57,21 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] macOS injected button events set CoreGraphics mouse click state.
 - [x] iOS scroll momentum seed preserves the dominant scroll axis when release samples contain cross-axis jitter.
 - [x] macOS host writes persistent diagnostic logs for connection, pairing, input, and command mapping.
+- [x] Generated Trackpad app icon is applied to both iOS and macOS app targets.
+- [x] Shared QR pairing payload encodes LAN host, port, pairing code, and service name.
+- [x] macOS host app displays a scannable QR pairing code.
+- [x] iOS app scans a macOS pairing QR code and connects with the encoded host, port, and code.
+- [x] iOS single-finger movement forwards coalesced touch samples to reduce apparent pointer jumps.
+- [x] iOS client displays the active connection path so wired/cable-like routes are visible.
+- [x] Add temporary `#########` diagnostics for the remaining one-finger pointer jump issue.
+- [x] iOS single-finger mapper rebases the first accumulated movement sample to avoid a startup pointer jump.
+- [x] macOS host can request connected iOS/iPadOS clients to upload local diagnostic logs.
+- [x] Remove the initial movement dead zone from tap-then-quick-second-press drag.
+- [x] Add targeted `#########` mapper diagnostics for the persistent tap-drag dead zone report.
+- [x] Rebase large tap-drag first-move landing offsets after diagnosing the real-device jump.
+- [x] iOS client attempts a wired-only TCP connection before falling back to the default path.
+- [x] Replace high-frequency JSON input frames with compact HID-like binary input reports.
+- [x] Document the detailed v1 wire protocol in `protocol/v1/wire-protocol.md`.
 
 ## Near-Term Milestones
 
@@ -91,11 +106,17 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [ ] Manually tune tap duration, drag interval, and scroll guard timing on a real iPhone/iPad.
 - [ ] Manually verify double-tap on iOS selects text or triggers native macOS double-click behavior.
 - [ ] Manually verify vertical scroll momentum is preserved when two-finger release contains small horizontal drift.
+- [ ] Manually verify QR pairing on a real iPhone/iPad camera against the macOS host QR code.
+- [ ] Manually verify slow one-finger movement starts without a large first pointer jump on a real iPhone/iPad.
+- [ ] Manually verify whether an iPhone/iPad connected by USB reports the active host connection as wired/cable-like.
+- [x] Inspect reproduced one-finger pointer jump in macOS `#########` host logs.
+- [ ] Manually verify host-triggered client log upload writes an iOS log file on macOS.
 
 ## Deferred
 
-- [ ] Pairing with QR code or short code.
-- [ ] Compact binary input-event framing for high-frequency pointer and scroll events.
+- [ ] Persist trusted devices after QR or short-code pairing.
+- [ ] Live transport migration to a lower-latency cable-like path after a session is already connected.
+- [x] Report-level coalescing for pending pointer and scroll changed reports.
 - [ ] Device key persistence and trust revocation.
 - [ ] WebRTC DataChannel transport.
 - [ ] STUN/TURN infrastructure.

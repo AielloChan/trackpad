@@ -6,11 +6,15 @@ import TrackpadKit
 
 public final class TrackpadHostClient: @unchecked Sendable {
     public var inputSendFailureHandler: (@Sendable (String) -> Void)?
+    public var pathUpdateHandler: (@Sendable (NetworkPathSnapshot) -> Void)?
+    public var connectionAttemptHandler: (@Sendable (TrackpadConnectionAttemptDiagnostic) -> Void)?
+    public var logUploadProvider: (@Sendable (HostLogRequest) -> ClientLogUpload?)?
+    public var connectionAttemptPlan = TrackpadConnectionAttemptPlan()
 
     private let queue = DispatchQueue(label: "trackpad.ios.host-client")
     private var connection: NWConnection?
     private var receiveCodec = SessionFrameLineCodec()
-    private var sendBuffer = InputEventSendBuffer()
+    private var sendBuffer = InputReportSendBuffer()
     private var nextPingID: UInt64 = 1
     private var pendingLatencyProbes: [UInt64: PendingLatencyProbe] = [:]
 
@@ -19,12 +23,30 @@ public final class TrackpadHostClient: @unchecked Sendable {
     public func connect(configuration: TrackpadConnectionConfiguration, timeout: TimeInterval = 3) async throws {
         disconnect()
 
-        let connection = NWConnection(to: configuration.address.connectionEndpoint, using: Self.lowLatencyTCPParameters())
+        var lastError: (any Error)?
+        for attempt in connectionAttemptPlan.attempts(defaultTimeout: timeout) {
+            do {
+                try await connect(configuration: configuration, attempt: attempt)
+                return
+            } catch {
+                lastError = error
+            }
+        }
+
+        throw lastError ?? TrackpadHostClientError.timeout
+    }
+
+    private func connect(configuration: TrackpadConnectionConfiguration, attempt: TrackpadConnectionAttempt) async throws {
+        connectionAttemptHandler?(TrackpadConnectionAttemptDiagnostic(attempt: attempt, phase: .started, errorDescription: nil))
+        let connection = NWConnection(
+            to: configuration.address.connectionEndpoint,
+            using: Self.lowLatencyTCPParameters(requiredInterface: attempt.interfaceRequirement)
+        )
         let readyState = ConnectionReadyState()
         queue.sync {
             self.connection = connection
             receiveCodec = SessionFrameLineCodec()
-            sendBuffer = InputEventSendBuffer()
+            sendBuffer = InputReportSendBuffer()
         }
 
         connection.stateUpdateHandler = { state in
@@ -39,20 +61,36 @@ public final class TrackpadHostClient: @unchecked Sendable {
                 break
             }
         }
+        connection.pathUpdateHandler = { [weak self] path in
+            self?.pathUpdateHandler?(NetworkPathSnapshot(path: path))
+        }
 
         connection.start(queue: queue)
 
-        if readyState.wait(timeout: timeout) == .timedOut {
+        if readyState.wait(timeout: attempt.timeout) == .timedOut {
             connection.cancel()
+            clearConnectionIfCurrent(connection)
+            connectionAttemptHandler?(TrackpadConnectionAttemptDiagnostic(attempt: attempt, phase: .failed, errorDescription: String(describing: TrackpadHostClientError.timeout)))
             throw TrackpadHostClientError.timeout
         }
 
         if let error = readyState.error {
+            connection.cancel()
+            clearConnectionIfCurrent(connection)
+            connectionAttemptHandler?(TrackpadConnectionAttemptDiagnostic(attempt: attempt, phase: .failed, errorDescription: String(describing: error)))
             throw error
         }
 
         receiveNext(on: connection)
-        try await send(TrackpadSessionMessageBuilder.clientHelloData(for: configuration))
+        do {
+            try await send(TrackpadSessionMessageBuilder.clientHelloData(for: configuration))
+            connectionAttemptHandler?(TrackpadConnectionAttemptDiagnostic(attempt: attempt, phase: .succeeded, errorDescription: nil))
+        } catch {
+            connection.cancel()
+            clearConnectionIfCurrent(connection)
+            connectionAttemptHandler?(TrackpadConnectionAttemptDiagnostic(attempt: attempt, phase: .failed, errorDescription: String(describing: error)))
+            throw error
+        }
     }
 
     public func send(_ event: InputEvent) async throws {
@@ -64,9 +102,7 @@ public final class TrackpadHostClient: @unchecked Sendable {
             return
         }
 
-        let data = try events.reduce(into: Data()) { result, event in
-            result.append(try TrackpadSessionMessageBuilder.inputData(for: event))
-        }
+        let reports = try events.map { try InputReport(event: $0) }
 
         queue.async {
             guard self.connection != nil else {
@@ -74,8 +110,8 @@ public final class TrackpadHostClient: @unchecked Sendable {
                 return
             }
 
-            if let batch = self.sendBuffer.enqueue(data) {
-                self.sendBufferedData(batch)
+            if let batch = self.sendBuffer.enqueue(reports) {
+                self.sendBufferedReports(batch)
             }
         }
     }
@@ -122,7 +158,7 @@ public final class TrackpadHostClient: @unchecked Sendable {
             connection?.cancel()
             connection = nil
             receiveCodec = SessionFrameLineCodec()
-            sendBuffer = InputEventSendBuffer()
+            sendBuffer = InputReportSendBuffer()
             finishAllLatencyProbes(result: .failure(TrackpadHostClientError.cancelled))
         }
     }
@@ -143,9 +179,19 @@ public final class TrackpadHostClient: @unchecked Sendable {
         }
     }
 
-    private func sendBufferedData(_ data: Data) {
+    private func sendBufferedReports(_ reports: [InputReport]) {
         guard let connection else {
             inputSendFailureHandler?(String(describing: TrackpadHostClientError.notConnected))
+            return
+        }
+
+        let data: Data
+        do {
+            data = try reports.reduce(into: Data()) { result, report in
+                result.append(try InputReportBinaryCodec.encode(report))
+            }
+        } catch {
+            inputSendFailureHandler?(String(describing: error))
             return
         }
 
@@ -161,10 +207,18 @@ public final class TrackpadHostClient: @unchecked Sendable {
                 }
 
                 if let nextBatch = self.sendBuffer.completeCurrentSend() {
-                    self.sendBufferedData(nextBatch)
+                    self.sendBufferedReports(nextBatch)
                 }
             }
         })
+    }
+
+    private func clearConnectionIfCurrent(_ connection: NWConnection) {
+        queue.sync {
+            if self.connection === connection {
+                self.connection = nil
+            }
+        }
     }
 
     private func receiveNext(on connection: NWConnection) {
@@ -218,8 +272,36 @@ public final class TrackpadHostClient: @unchecked Sendable {
             finishLatencyProbe(id: pong.id, result: .success(roundTripSeconds))
         case .rejected:
             finishAllLatencyProbes(result: .failure(TrackpadHostClientError.cancelled))
-        case .clientHello, .input, .ping:
+        case .hostLogRequest(let request):
+            sendClientLogUpload(for: request)
+        case .clientHello, .input, .ping, .clientLogUpload:
             break
+        }
+    }
+
+    private func sendClientLogUpload(for request: HostLogRequest) {
+        guard let upload = logUploadProvider?(request) else {
+            return
+        }
+
+        do {
+            let data = try TrackpadSessionMessageBuilder.clientLogUploadData(for: upload)
+            guard let connection else {
+                inputSendFailureHandler?(String(describing: TrackpadHostClientError.notConnected))
+                return
+            }
+
+            connection.send(content: data, completion: .contentProcessed { [weak self] error in
+                guard let self, let error else {
+                    return
+                }
+
+                self.queue.async {
+                    self.inputSendFailureHandler?(String(describing: error))
+                }
+            })
+        } catch {
+            inputSendFailureHandler?(String(describing: error))
         }
     }
 
@@ -247,10 +329,96 @@ public final class TrackpadHostClient: @unchecked Sendable {
         DispatchTime.now().uptimeNanoseconds
     }
 
-    private static func lowLatencyTCPParameters() -> NWParameters {
+    private static func lowLatencyTCPParameters(requiredInterface: NetworkInterfaceKind? = nil) -> NWParameters {
         let tcpOptions = NWProtocolTCP.Options()
         tcpOptions.noDelay = true
-        return NWParameters(tls: nil, tcp: tcpOptions)
+        let parameters = NWParameters(tls: nil, tcp: tcpOptions)
+        if let interfaceType = requiredInterface?.nwInterfaceType {
+            parameters.requiredInterfaceType = interfaceType
+        }
+        return parameters
+    }
+}
+
+public struct TrackpadConnectionAttempt: Equatable, Sendable {
+    public let interfaceRequirement: NetworkInterfaceKind?
+    public let timeout: TimeInterval
+
+    public init(interfaceRequirement: NetworkInterfaceKind?, timeout: TimeInterval) {
+        self.interfaceRequirement = interfaceRequirement
+        self.timeout = timeout
+    }
+
+    public var label: String {
+        interfaceRequirement?.label ?? "Default"
+    }
+}
+
+public struct TrackpadConnectionAttemptPlan: Equatable, Sendable {
+    public let prefersWiredEthernet: Bool
+    public let wiredAttemptTimeout: TimeInterval
+
+    public init(prefersWiredEthernet: Bool = true, wiredAttemptTimeout: TimeInterval = 0.6) {
+        self.prefersWiredEthernet = prefersWiredEthernet
+        self.wiredAttemptTimeout = wiredAttemptTimeout
+    }
+
+    public func attempts(defaultTimeout: TimeInterval) -> [TrackpadConnectionAttempt] {
+        guard prefersWiredEthernet else {
+            return [TrackpadConnectionAttempt(interfaceRequirement: nil, timeout: defaultTimeout)]
+        }
+
+        return [
+            TrackpadConnectionAttempt(interfaceRequirement: .wiredEthernet, timeout: min(wiredAttemptTimeout, defaultTimeout)),
+            TrackpadConnectionAttempt(interfaceRequirement: nil, timeout: defaultTimeout),
+        ]
+    }
+}
+
+public enum TrackpadConnectionAttemptPhase: String, Equatable, Sendable {
+    case started
+    case succeeded
+    case failed
+}
+
+public struct TrackpadConnectionAttemptDiagnostic: Equatable, Sendable {
+    public let attempt: TrackpadConnectionAttempt
+    public let phase: TrackpadConnectionAttemptPhase
+    public let errorDescription: String?
+
+    public init(
+        attempt: TrackpadConnectionAttempt,
+        phase: TrackpadConnectionAttemptPhase,
+        errorDescription: String?
+    ) {
+        self.attempt = attempt
+        self.phase = phase
+        self.errorDescription = errorDescription
+    }
+
+    public var message: String {
+        if let errorDescription {
+            return "connect attempt=\(attempt.label) phase=\(phase.rawValue) timeout=\(String(format: "%.2f", attempt.timeout)) error=\(errorDescription)"
+        }
+
+        return "connect attempt=\(attempt.label) phase=\(phase.rawValue) timeout=\(String(format: "%.2f", attempt.timeout))"
+    }
+}
+
+private extension NetworkInterfaceKind {
+    var nwInterfaceType: NWInterface.InterfaceType? {
+        switch self {
+        case .wiredEthernet:
+            return .wiredEthernet
+        case .wifi:
+            return .wifi
+        case .cellular:
+            return .cellular
+        case .loopback:
+            return .loopback
+        case .other:
+            return .other
+        }
     }
 }
 
@@ -264,16 +432,16 @@ private struct PendingLatencyProbe {
     let continuation: CheckedContinuation<TimeInterval, any Error>
 }
 
-struct InputEventSendBuffer {
+struct InputReportSendBuffer {
     private var isSending = false
-    private var pendingData = Data()
+    private var pendingReports: [InputReport] = []
 
-    mutating func enqueue(_ data: Data) -> Data? {
-        guard !data.isEmpty else {
+    mutating func enqueue(_ reports: [InputReport]) -> [InputReport]? {
+        guard !reports.isEmpty else {
             return nil
         }
 
-        pendingData.append(data)
+        appendPending(reports)
         guard !isSending else {
             return nil
         }
@@ -281,20 +449,60 @@ struct InputEventSendBuffer {
         return drainNextBatch()
     }
 
-    mutating func completeCurrentSend() -> Data? {
+    mutating func completeCurrentSend() -> [InputReport]? {
         isSending = false
         return drainNextBatch()
     }
 
-    private mutating func drainNextBatch() -> Data? {
-        guard !pendingData.isEmpty else {
+    private mutating func drainNextBatch() -> [InputReport]? {
+        guard !pendingReports.isEmpty else {
             return nil
         }
 
-        let data = pendingData
-        pendingData.removeAll(keepingCapacity: true)
+        let reports = pendingReports
+        pendingReports.removeAll(keepingCapacity: true)
         isSending = true
-        return data
+        return reports
+    }
+
+    private mutating func appendPending(_ reports: [InputReport]) {
+        for report in reports {
+            if let last = pendingReports.last,
+               let coalesced = last.coalesced(with: report) {
+                pendingReports[pendingReports.count - 1] = coalesced
+            } else {
+                pendingReports.append(report)
+            }
+        }
+    }
+}
+
+private extension InputReport {
+    func coalesced(with next: InputReport) -> InputReport? {
+        switch (kind, next.kind) {
+        case (.pointerMove(let dx, let dy), .pointerMove(let nextDx, let nextDy)):
+            return InputReport(
+                sequenceNumber: next.sequenceNumber,
+                timestampNanos: next.timestampNanos,
+                kind: .pointerMove(dx: dx + nextDx, dy: dy + nextDy)
+            )
+        case (
+            .scroll(let dx, let dy, let phase, let momentumPhase),
+            .scroll(let nextDx, let nextDy, let nextPhase, let nextMomentumPhase)
+        ) where phase == .changed && nextPhase == .changed && momentumPhase == nextMomentumPhase:
+            return InputReport(
+                sequenceNumber: next.sequenceNumber,
+                timestampNanos: next.timestampNanos,
+                kind: .scroll(
+                    dx: dx + nextDx,
+                    dy: dy + nextDy,
+                    phase: nextPhase,
+                    momentumPhase: nextMomentumPhase
+                )
+            )
+        default:
+            return nil
+        }
     }
 }
 

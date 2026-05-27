@@ -14,12 +14,41 @@ import TrackpadKit
     var mapper = TouchSurfaceEventMapper(timestampProvider: { 200 })
     _ = mapper.begin(at: TouchPoint(x: 10, y: 20))
 
-    let event = mapper.move(to: TouchPoint(x: 16, y: 17))
+    _ = mapper.move(to: TouchPoint(x: 16, y: 17))
+    let event = mapper.move(to: TouchPoint(x: 17, y: 16))
 
     #expect(event == InputEvent(
         sequenceNumber: 1,
         timestampNanos: 200,
-        kind: .pointerMove(PointerMoveEvent(dx: 6, dy: -3))
+        kind: .pointerMove(PointerMoveEvent(dx: 1, dy: -1))
+    ))
+}
+
+@Test func firstLargeSingleFingerMoveRebasesWithoutPointerJump() {
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { 200 })
+    _ = mapper.begin(at: TouchPoint(x: 10, y: 20))
+
+    let first = mapper.move(to: TouchPoint(x: 16, y: 17))
+    let second = mapper.move(to: TouchPoint(x: 17, y: 16))
+
+    #expect(first == nil)
+    #expect(second == InputEvent(
+        sequenceNumber: 1,
+        timestampNanos: 200,
+        kind: .pointerMove(PointerMoveEvent(dx: 1, dy: -1))
+    ))
+}
+
+@Test func firstSmallSingleFingerMoveStillMovesPointer() {
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { 200 })
+    _ = mapper.begin(at: TouchPoint(x: 10, y: 20))
+
+    let event = mapper.move(to: TouchPoint(x: 12, y: 21))
+
+    #expect(event == InputEvent(
+        sequenceNumber: 1,
+        timestampNanos: 200,
+        kind: .pointerMove(PointerMoveEvent(dx: 2, dy: 1))
     ))
 }
 
@@ -76,17 +105,21 @@ import TrackpadKit
     ])
 
     currentTime = 500_000_000
-    let moved = mapper.move(with: [
+    let firstMove = mapper.move(with: [
         TouchContact(id: 1, point: TouchPoint(x: 12, y: 4)),
+    ])
+    let moved = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 14, y: 5)),
     ])
     currentTime = 550_000_000
     let ended = mapper.end(with: [])
 
+    #expect(firstMove.isEmpty)
     #expect(moved == [
         InputEvent(
             sequenceNumber: 1,
             timestampNanos: 500_000_000,
-            kind: .pointerMove(PointerMoveEvent(dx: 12, dy: 4))
+            kind: .pointerMove(PointerMoveEvent(dx: 2, dy: 1))
         ),
     ])
     #expect(ended.isEmpty)
@@ -106,8 +139,12 @@ import TrackpadKit
         TouchContact(id: 2, point: TouchPoint(x: 0, y: 0)),
     ])
     currentTime = 260_000_000
-    let moved = mapper.move(with: [
+    let firstMove = mapper.move(with: [
         TouchContact(id: 2, point: TouchPoint(x: 12, y: 0)),
+    ])
+    currentTime = 280_000_000
+    let moved = mapper.move(with: [
+        TouchContact(id: 2, point: TouchPoint(x: 14, y: 0)),
     ])
     currentTime = 300_000_000
     let secondEnd = mapper.end(with: [])
@@ -120,16 +157,18 @@ import TrackpadKit
         ),
     ])
     #expect(secondBegin.isEmpty)
-    #expect(moved == [
+    #expect(firstMove == [
         InputEvent(
             sequenceNumber: 2,
             timestampNanos: 260_000_000,
             kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))
         ),
+    ])
+    #expect(moved == [
         InputEvent(
             sequenceNumber: 3,
-            timestampNanos: 260_000_000,
-            kind: .pointerMove(PointerMoveEvent(dx: 12, dy: 0))
+            timestampNanos: 280_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 2, dy: 0))
         ),
     ])
     #expect(secondEnd == [
@@ -155,24 +194,28 @@ import TrackpadKit
         TouchContact(id: 2, point: TouchPoint(x: 0, y: 0)),
     ])
     currentTime = 290_000_000
-    let moved = mapper.move(with: [
+    let firstMove = mapper.move(with: [
         TouchContact(id: 2, point: TouchPoint(x: 12, y: 0)),
+    ])
+    let moved = mapper.move(with: [
+        TouchContact(id: 2, point: TouchPoint(x: 14, y: 0)),
     ])
     currentTime = 330_000_000
     let secondEnd = mapper.end(with: [])
 
     #expect(secondBegin.isEmpty)
+    #expect(firstMove.isEmpty)
     #expect(moved == [
         InputEvent(
             sequenceNumber: 2,
             timestampNanos: 290_000_000,
-            kind: .pointerMove(PointerMoveEvent(dx: 12, dy: 0))
+            kind: .pointerMove(PointerMoveEvent(dx: 2, dy: 0))
         ),
     ])
     #expect(secondEnd.isEmpty)
 }
 
-@Test func tapThenSecondPressSmallMoveStillMovesPointerBeforeDragThreshold() {
+@Test func tapThenSecondPressSmallMoveStartsDragWithoutMovementDeadZone() {
     var currentTime: UInt64 = 0
     var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
     _ = mapper.begin(with: [
@@ -194,7 +237,50 @@ import TrackpadKit
         InputEvent(
             sequenceNumber: 2,
             timestampNanos: 220_000_000,
+            kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))
+        ),
+        InputEvent(
+            sequenceNumber: 3,
+            timestampNanos: 220_000_000,
             kind: .pointerMove(PointerMoveEvent(dx: 3, dy: 2))
+        ),
+    ])
+}
+
+@Test func tapDragCandidateRebasesLargeFirstMoveButKeepsDragActive() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 0, y: 0)),
+    ])
+
+    currentTime = 100_000_000
+    _ = mapper.end(with: [])
+    currentTime = 180_000_000
+    _ = mapper.begin(with: [
+        TouchContact(id: 2, point: TouchPoint(x: 0, y: 0)),
+    ])
+    currentTime = 220_000_000
+    let firstMove = mapper.move(with: [
+        TouchContact(id: 2, point: TouchPoint(x: 10.5, y: -3)),
+    ])
+    currentTime = 236_000_000
+    let secondMove = mapper.move(with: [
+        TouchContact(id: 2, point: TouchPoint(x: 11, y: -3)),
+    ])
+
+    #expect(firstMove == [
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 220_000_000,
+            kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))
+        ),
+    ])
+    #expect(secondMove == [
+        InputEvent(
+            sequenceNumber: 3,
+            timestampNanos: 236_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 0.5, dy: 0))
         ),
     ])
 }
@@ -217,7 +303,7 @@ import TrackpadKit
     ])
     currentTime = 300_000_000
     let moved = mapper.move(with: [
-        TouchContact(id: 2, point: TouchPoint(x: 12, y: 0)),
+        TouchContact(id: 2, point: TouchPoint(x: 3, y: 0)),
     ])
 
     #expect(moved == [
@@ -229,7 +315,7 @@ import TrackpadKit
         InputEvent(
             sequenceNumber: 3,
             timestampNanos: 300_000_000,
-            kind: .pointerMove(PointerMoveEvent(dx: 12, dy: 0))
+            kind: .pointerMove(PointerMoveEvent(dx: 3, dy: 0))
         ),
     ])
 }

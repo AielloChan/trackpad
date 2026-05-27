@@ -1,5 +1,9 @@
 # Trackpad
 
+<p align="center">
+  <img src="docs/assets/trackpad-logo.png" alt="Trackpad app icon" width="160">
+</p>
+
 [中文](README.zh-CN.md) | [Français](README.fr.md)
 
 Trackpad is a native Apple-platform project that lets an iPhone or iPad act as a macOS trackpad. The repository is intended to live at:
@@ -16,6 +20,7 @@ Phase 1 is functionally usable for local LAN testing:
 
 - iOS/iPadOS client with a black touch surface.
 - Bonjour discovery and manual IP connection fallback.
+- QR-code pairing from the macOS host app to the iOS client.
 - Six-digit pairing gate before input is processed.
 - Single-finger pointer movement.
 - Single-finger tap for left click.
@@ -23,9 +28,15 @@ Phase 1 is functionally usable for local LAN testing:
 - Two-finger tap for right click.
 - Two-finger scroll with first-pass momentum.
 - Client-side latency, touch sample rate, and sent event rate display.
+- Active connection path display for Wi-Fi, cellular, wired/cable-like, and constrained paths.
+- Initial wired-only TCP connection attempt before default TCP fallback when the system exposes a cable-like path.
 - Live tuning sliders for pointer speed, scroll momentum, and gesture timing.
+- iOS sends high-frequency input as compact HID-like 32-byte binary reports.
+- Pending pointer and compatible scroll changed reports are coalesced while a previous send is still in flight.
 - macOS host input injection for movement, click, drag, scroll phase, momentum phase, and double-click click state.
+- macOS host accepts binary input reports and JSON control frames on the same session stream.
 - Persistent macOS host logs at `~/Library/Logs/Trackpad/host.log`.
+- Host-triggered iOS/iPadOS diagnostic log uploads to `~/Library/Logs/Trackpad/client-logs/`.
 
 The goal is to keep improving the feel until it is as close as practical to the official Apple trackpad experience. Stage 1 still has manual verification items in `TODOS.md`, especially real-device gesture tuning and safe click/scroll checks.
 
@@ -45,6 +56,7 @@ packages/
 
 protocol/
   v1/                     Protocol documentation.
+    wire-protocol.md      Detailed v1 wire protocol specification.
 
 docs/
   architecture.md         System architecture.
@@ -84,7 +96,7 @@ Transport is intentionally abstracted. The MVP uses Bonjour plus direct TCP on t
 
 - macOS with Xcode installed.
 - Swift toolchain provided by Xcode.
-- iPhone/iPad or iOS Simulator for the client.
+- iPhone/iPad or iOS Simulator for the client. QR scanning requires a real device with camera permission.
 - Accessibility permission granted to the running macOS host app or host CLI before input injection can work.
 
 ## Build and Run
@@ -97,7 +109,7 @@ Open and run:
 apps/macos/TrackpadHostApp/TrackpadHostApp.xcodeproj
 ```
 
-Use the `TrackpadHostApp` scheme. The app shows the current pairing code, server state, port, connection count, and Accessibility permission state.
+Use the `TrackpadHostApp` scheme. The app shows a pairing QR code, current pairing code, server state, port, connection count, and Accessibility permission state.
 
 Command-line build:
 
@@ -134,7 +146,7 @@ Open and run:
 apps/ios/TrackpadIOS/TrackpadIOS.xcodeproj
 ```
 
-Use the `TrackpadIOS` scheme on a simulator or real device. A real iPhone or iPad is required for meaningful touch-feel testing.
+Use the `TrackpadIOS` scheme on a simulator or real device. A real iPhone or iPad is required for QR scanning and meaningful touch-feel testing. Tap `Scan QR` on the connection panel to pair with the macOS host QR code, or use Bonjour/manual IP fallback.
 
 Command-line simulator build example:
 
@@ -170,7 +182,8 @@ swift test
 Near-term work:
 
 - Finish real-device gesture tuning against Apple trackpad behavior.
-- Replace JSON Lines with a compact binary input-event frame format when the event model stabilizes.
+- Continue tuning report coalescing, sample rate, and pointer/scroll feel on real devices.
+- Validate cable-like network paths on real USB-connected devices and prepare transport migration.
 - Persist trusted devices and improve pairing UX.
 - Add encrypted sessions.
 

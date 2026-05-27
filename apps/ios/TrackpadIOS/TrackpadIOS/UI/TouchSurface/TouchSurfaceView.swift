@@ -63,6 +63,13 @@ struct TouchSurfaceView: View {
                     .foregroundStyle(.secondary)
                     .frame(minWidth: 88, alignment: .leading)
 
+                Text(model.connectionPathLabel)
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .frame(minWidth: 82, maxWidth: 142, alignment: .leading)
+
                 Spacer()
 
                 Button("Disconnect", action: model.disconnect)

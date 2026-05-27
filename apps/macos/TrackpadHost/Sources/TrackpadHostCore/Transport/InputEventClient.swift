@@ -16,7 +16,8 @@ public enum InputEventClient {
             deviceName: "Trackpad CLI",
             pairingCode: pairingCode.value
         )
-        let data = try SessionFrameLineCodec.encode(.clientHello(hello)) + SessionFrameLineCodec.encode(.input(event))
+        let data = try SessionFrameLineCodec.encode(.clientHello(hello))
+            + InputReportBinaryCodec.encode(InputReport(event: event))
         let connection = NWConnection(
             host: NWEndpoint.Host(host),
             port: NWEndpoint.Port(rawValue: port)!,

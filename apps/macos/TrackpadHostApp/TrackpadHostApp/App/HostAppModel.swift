@@ -6,6 +6,8 @@ final class HostAppModel: ObservableObject {
     @Published private(set) var isTrusted = AccessibilityPermission.isTrusted
     @Published private(set) var status = HostRuntimeStatus.stopped
     @Published private(set) var pairingCode = PairingCode.generate()
+    @Published private(set) var pairingQRCodePayload: HostPairingQRCodePayload?
+    @Published private(set) var clientLogRequestStatus: String?
 
     private var server: LanHostServer?
     private let logger = FileHostLogger()
@@ -16,6 +18,7 @@ final class HostAppModel: ObservableObject {
 
     init() {
         logger.info(category: "app", "host app model initialized logPath=\(logger.fileURL.path)")
+        refreshPairingQRCodePayload()
     }
 
     func requestPermission() {
@@ -25,6 +28,7 @@ final class HostAppModel: ObservableObject {
 
     func refreshPermission() {
         isTrusted = AccessibilityPermission.isTrusted
+        refreshPairingQRCodePayload()
     }
 
     func startServer() {
@@ -33,6 +37,7 @@ final class HostAppModel: ObservableObject {
         }
 
         logger.info(category: "app", "starting host app server logPath=\(logger.fileURL.path)")
+        refreshPairingQRCodePayload()
         let processor = HostEventProcessor(performer: MacInputInjector(), logger: logger)
         let server = LanHostServer(
             pairingPolicy: PairingPolicy(requiredCode: pairingCode),
@@ -70,5 +75,20 @@ final class HostAppModel: ObservableObject {
         }
 
         pairingCode = PairingCode.generate()
+        refreshPairingQRCodePayload()
+    }
+
+    func requestClientLogs() {
+        guard let server else {
+            clientLogRequestStatus = "Server is not running"
+            return
+        }
+
+        server.requestClientLogUpload()
+        clientLogRequestStatus = "Requested client logs"
+    }
+
+    private func refreshPairingQRCodePayload() {
+        pairingQRCodePayload = HostPairingQRCodePayloadFactory.make(pairingCode: pairingCode)
     }
 }

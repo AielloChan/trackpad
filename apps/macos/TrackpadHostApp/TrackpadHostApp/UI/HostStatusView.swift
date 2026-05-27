@@ -8,6 +8,8 @@ struct HostStatusView: View {
         VStack(alignment: .leading, spacing: 16) {
             header
 
+            pairingQRCode
+
             statusRows
 
             HStack {
@@ -31,13 +33,32 @@ struct HostStatusView: View {
                 }
             }
 
+            Button("Request Client Logs") {
+                model.requestClientLogs()
+            }
+            .disabled(model.status.authorizedConnectionCount == 0)
+
             Button("New Pairing Code") {
                 model.regeneratePairingCode()
             }
             .disabled(model.status.state == .running || model.status.state == .starting)
         }
         .padding(24)
-        .frame(width: 440)
+        .frame(width: 560)
+    }
+
+    @ViewBuilder
+    private var pairingQRCode: some View {
+        if let payload = model.pairingQRCodePayload {
+            PairingQRCodeView(
+                message: payload.message,
+                endpointText: "\(payload.host):\(payload.port)"
+            )
+        } else {
+            Text("Pairing QR unavailable. Connect this Mac to a local network and refresh.")
+                .font(.footnote)
+                .foregroundStyle(.orange)
+        }
     }
 
     private var header: some View {
@@ -62,6 +83,11 @@ struct HostStatusView: View {
             statusRow("Authorized", "\(model.status.authorizedConnectionCount)", .secondary)
             statusRow("Events", "\(model.status.handledEventCount)", .secondary)
             statusRow("Log File", model.logFilePath, .secondary)
+            statusRow("Client Logs", clientLogDirectoryPath, .secondary)
+
+            if let clientLogRequestStatus = model.clientLogRequestStatus {
+                statusRow("Log Request", clientLogRequestStatus, .secondary)
+            }
 
             if let lastError = model.status.lastError {
                 statusRow("Error", lastError, .red)
@@ -79,6 +105,10 @@ struct HostStatusView: View {
                 .truncationMode(.middle)
                 .textSelection(.enabled)
         }
+    }
+
+    private var clientLogDirectoryPath: String {
+        ClientLogUploadWriter.defaultDirectoryURL.path
     }
 }
 

@@ -69,6 +69,7 @@ public struct TouchSurfaceEventMapper {
         var maxDistanceFromStart: Double = 0
         var isDragging = false
         var isTapDragCandidate = false
+        var hasProcessedSingleFingerMove = false
         var suppressSingleFingerTap = false
         var didScroll = false
     }
@@ -81,6 +82,8 @@ public struct TouchSurfaceEventMapper {
     private var nextSequenceNumber: UInt64 = 1
     private let timestampProvider: () -> UInt64
     private let tapMovementTolerance: Double = 8
+    private let firstPointerMoveRebaseTolerance: Double = 3
+    private let tapDragFirstMoveRebaseTolerance: Double = 8
     private let scrollMovementTolerance: Double = 0.5
 
     public init(
@@ -119,6 +122,7 @@ public struct TouchSurfaceEventMapper {
         let dx = currentPoint.x - state.previousPoint.x
         let dy = currentPoint.y - state.previousPoint.y
         let previousTimeNanos = state.previousTimeNanos
+        let distanceFromPreviousPoint = distance(dx: dx, dy: dy)
         state.previousPoint = currentPoint
         state.previousTimeNanos = timestamp
         state.maxDistanceFromStart = max(state.maxDistanceFromStart, distance(from: state.startPoint, to: currentPoint))
@@ -126,7 +130,29 @@ public struct TouchSurfaceEventMapper {
         var events: [InputEvent] = []
         switch state.kind {
         case .singleFinger:
-            if state.isTapDragCandidate && !state.isDragging && state.maxDistanceFromStart > tapMovementTolerance {
+            if !state.isTapDragCandidate && !state.hasProcessedSingleFingerMove {
+                state.hasProcessedSingleFingerMove = true
+                if distanceFromPreviousPoint > firstPointerMoveRebaseTolerance {
+                    state.suppressSingleFingerTap = true
+                    gestureState = state
+                    return []
+                }
+            }
+
+            if state.isTapDragCandidate && !state.hasProcessedSingleFingerMove {
+                state.hasProcessedSingleFingerMove = true
+                if !state.isDragging {
+                    state.isDragging = true
+                    events.append(makeEvent(timestampNanos: timestamp, kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))))
+                }
+
+                if distanceFromPreviousPoint > tapDragFirstMoveRebaseTolerance {
+                    gestureState = state
+                    return events
+                }
+            }
+
+            if state.isTapDragCandidate && !state.isDragging {
                 state.isDragging = true
                 events.append(makeEvent(timestampNanos: timestamp, kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))))
             }
@@ -322,6 +348,10 @@ public struct TouchSurfaceEventMapper {
     private func distance(from start: TouchPoint, to end: TouchPoint) -> Double {
         let dx = end.x - start.x
         let dy = end.y - start.y
+        return distance(dx: dx, dy: dy)
+    }
+
+    private func distance(dx: Double, dy: Double) -> Double {
         return (dx * dx + dy * dy).squareRoot()
     }
 

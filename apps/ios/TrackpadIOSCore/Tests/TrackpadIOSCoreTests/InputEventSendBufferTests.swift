@@ -1,20 +1,57 @@
-import Foundation
 import Testing
+import TrackpadKit
 @testable import TrackpadIOSCore
 
-@Test func sendBufferDrainsFirstBatchAndCoalescesPendingBatches() {
-    var buffer = InputEventSendBuffer()
+@Test func sendBufferDrainsFirstBatchAndCoalescesPendingPointerReports() {
+    var buffer = InputReportSendBuffer()
+    let first = inputReport(sequence: 1, dx: 1, dy: 2)
+    let second = inputReport(sequence: 2, dx: 3, dy: 4)
+    let third = inputReport(sequence: 3, dx: -1, dy: 5)
 
-    #expect(buffer.enqueue(Data([1, 2])) == Data([1, 2]))
-    #expect(buffer.enqueue(Data([3])) == nil)
-    #expect(buffer.enqueue(Data([4, 5])) == nil)
-    #expect(buffer.completeCurrentSend() == Data([3, 4, 5]))
+    #expect(buffer.enqueue([first]) == [first])
+    #expect(buffer.enqueue([second]) == nil)
+    #expect(buffer.enqueue([third]) == nil)
+    #expect(buffer.completeCurrentSend() == [
+        inputReport(sequence: 3, dx: 2, dy: 9),
+    ])
     #expect(buffer.completeCurrentSend() == nil)
 }
 
 @Test func sendBufferIgnoresEmptyBatches() {
-    var buffer = InputEventSendBuffer()
+    var buffer = InputReportSendBuffer()
 
-    #expect(buffer.enqueue(Data()) == nil)
+    #expect(buffer.enqueue([]) == nil)
     #expect(buffer.completeCurrentSend() == nil)
+}
+
+@Test func sendBufferDoesNotCoalesceAcrossButtonBoundaries() {
+    var buffer = InputReportSendBuffer()
+    let button = InputReport(
+        sequenceNumber: 3,
+        timestampNanos: 3,
+        kind: .pointerButton(button: .left, phase: .down)
+    )
+
+    #expect(buffer.enqueue([inputReport(sequence: 1, dx: 1, dy: 0)]) == [
+        inputReport(sequence: 1, dx: 1, dy: 0),
+    ])
+    #expect(buffer.enqueue([
+        inputReport(sequence: 2, dx: 2, dy: 0),
+        button,
+        inputReport(sequence: 4, dx: 4, dy: 0),
+    ]) == nil)
+
+    #expect(buffer.completeCurrentSend() == [
+        inputReport(sequence: 2, dx: 2, dy: 0),
+        button,
+        inputReport(sequence: 4, dx: 4, dy: 0),
+    ])
+}
+
+private func inputReport(sequence: UInt64, dx: Double, dy: Double) -> InputReport {
+    InputReport(
+        sequenceNumber: sequence,
+        timestampNanos: sequence,
+        kind: .pointerMove(dx: dx, dy: dy)
+    )
 }

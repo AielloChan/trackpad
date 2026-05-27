@@ -20,6 +20,7 @@ final class TrackpadClientModel: ObservableObject {
     @Published private(set) var latencyMilliseconds: Int?
     @Published private(set) var touchSampleRateHz: Int?
     @Published private(set) var sentEventRateHz: Int?
+    @Published private(set) var connectionPathLabel = "Path --"
     @Published var pointerSpeedMultiplier = 2.1
     @Published var scrollMomentumAmount = 1.8
     @Published var tapMaximumDurationMilliseconds = 250.0
@@ -27,6 +28,9 @@ final class TrackpadClientModel: ObservableObject {
     @Published var scrollReleaseTapSuppressionMilliseconds = 80.0
 
     private let client = TrackpadHostClient()
+    private let diagnosticLogStore = ClientDiagnosticLogStore()
+    private let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? "ios-device"
+    private let deviceName = UIDevice.current.name
     private var mapper = TouchSurfaceEventMapper()
     private var selectedDiscoveredHost: DiscoveredTrackpadHost?
     private var isDiscoveryRunning = false
@@ -49,6 +53,24 @@ final class TrackpadClientModel: ObservableObject {
             Task { @MainActor [weak self] in
                 self?.handleInputSendFailure(message)
             }
+        }
+        client.pathUpdateHandler = { [weak self] snapshot in
+            Task { @MainActor [weak self] in
+                self?.connectionPathLabel = snapshot.shortLabel
+            }
+        }
+        client.connectionAttemptHandler = { [weak self] diagnostic in
+            Task { @MainActor [weak self] in
+                self?.recordDiagnosticLog("######### ios.transport \(diagnostic.message)")
+            }
+        }
+        client.logUploadProvider = { [diagnosticLogStore, deviceId, deviceName] request in
+            try? diagnosticLogStore.makeUpload(
+                requestId: request.id,
+                deviceId: deviceId,
+                deviceName: deviceName,
+                createdAtNanos: DispatchTime.now().uptimeNanoseconds
+            )
         }
     }
 
@@ -93,8 +115,8 @@ final class TrackpadClientModel: ObservableObject {
             configuration = TrackpadConnectionConfiguration(
                 address: selectedDiscoveredHost.address,
                 pairingCode: pairingCode,
-                deviceId: UIDevice.current.identifierForVendor?.uuidString ?? "ios-device",
-                deviceName: UIDevice.current.name
+                deviceId: deviceId,
+                deviceName: deviceName
             )
         } else {
             guard let portValue = UInt16(port) else {
@@ -106,8 +128,8 @@ final class TrackpadClientModel: ObservableObject {
                 host: host,
                 port: portValue,
                 pairingCode: pairingCode,
-                deviceId: UIDevice.current.identifierForVendor?.uuidString ?? "ios-device",
-                deviceName: UIDevice.current.name
+                deviceId: deviceId,
+                deviceName: deviceName
             )
         }
 
@@ -126,11 +148,31 @@ final class TrackpadClientModel: ObservableObject {
         }
     }
 
+    func connect(usingQRCodeMessage message: String) {
+        do {
+            let payload = try PairingQRCodePayload(urlString: message)
+            guard payload.transport == PairingQRCodePayload.lanTCPTransport else {
+                connectionState = .failed("Unsupported QR transport")
+                return
+            }
+
+            selectedDiscoveredHost = nil
+            selectedHostID = nil
+            host = payload.host
+            port = String(payload.port)
+            pairingCode = payload.pairingCode
+            connect()
+        } catch {
+            connectionState = .failed("Invalid pairing QR code")
+        }
+    }
+
     func disconnect() {
         stopLatencyUpdates()
         stopScrollMomentum()
         client.disconnect()
         mapper.end()
+        connectionPathLabel = "Path --"
         connectionState = .disconnected
     }
 
@@ -151,7 +193,8 @@ final class TrackpadClientModel: ObservableObject {
 
         applyGestureConfiguration()
         touchMoveSampleCounter += 1
-        send(mapper.move(with: contacts))
+        let events = mapper.move(with: contacts)
+        send(events)
     }
 
     func touchEnded(with contacts: [TouchContact]) {
@@ -290,6 +333,7 @@ final class TrackpadClientModel: ObservableObject {
         latencyMilliseconds = nil
         touchSampleRateHz = nil
         sentEventRateHz = nil
+        connectionPathLabel = "Path --"
         touchMoveSampleCounter = 0
         sentEventCounter = 0
         lastRateSampleNanos = DispatchTime.now().uptimeNanoseconds
@@ -394,5 +438,10 @@ final class TrackpadClientModel: ObservableObject {
         stopScrollMomentum()
         connectionState = .failed(message)
         client.disconnect()
+    }
+
+    func recordDiagnosticLog(_ message: String) {
+        print(message)
+        diagnosticLogStore.append(message)
     }
 }

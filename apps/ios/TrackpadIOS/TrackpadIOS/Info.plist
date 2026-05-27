@@ -26,6 +26,8 @@
 	<array>
 		<string>_trackpad-host._tcp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Trackpad uses the camera to scan Mac pairing QR codes.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Trackpad connects to your Mac on the local network.</string>
 	<key>UILaunchScreen</key>

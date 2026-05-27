@@ -6,16 +6,17 @@ The iOS client MVP is a native SwiftUI/UIKit app that sends single-finger moveme
 
 1. Start the macOS host and note its pairing code.
 2. Open the iOS app.
-3. Select a discovered Bonjour host, or enter the macOS host IP address and TCP port manually.
-4. Enter the pairing code and tap Connect.
+3. Tap `Scan QR` and scan the macOS host QR code, or select a discovered Bonjour host / enter IP details manually.
+4. If using manual entry, enter the pairing code and tap Connect.
 5. After connection succeeds, the app shows a black touch surface.
 6. Single-finger movement sends `InputEvent.pointerMove` frames to macOS.
 7. Single-finger tap, tap-then-quick-second-press drag, two-finger tap, and two-finger movement map to click, drag, right click, and scroll events.
 8. Two-finger scroll release sends a scroll end and then a short decaying momentum sequence.
 9. The connected bar shows client-to-host round-trip latency and refreshes it once per second.
 10. The connected bar also shows touch-move sample Hz and sent input-event Hz as `touch/send Hz`.
-11. The connected bar exposes pointer speed and scroll momentum amount sliders while connected.
-12. The connected bar exposes tap duration, drag interval, and scroll guard timing sliders while connected.
+11. The connected bar shows the active connection path reported by `Network.framework`.
+12. The connected bar exposes pointer speed and scroll momentum amount sliders while connected.
+13. The connected bar exposes tap duration, drag interval, and scroll guard timing sliders while connected.
 
 ## Transport
 
@@ -53,6 +54,8 @@ The macOS host echoes:
 SessionFrame.pong(SessionPong)
 ```
 
+When the macOS host sends `SessionFrame.hostLogRequest`, the iOS client uploads a bounded local diagnostic log with `SessionFrame.clientLogUpload`.
+
 Frames are encoded with the shared `SessionFrameLineCodec` from `TrackpadKit`.
 
 ## Implementation Notes
@@ -61,10 +64,16 @@ Frames are encoded with the shared `SessionFrameLineCodec` from `TrackpadKit`.
 - The Xcode app references the reusable iOS core source files directly while the package remains the unit-test boundary.
 - The Xcode app owns UI state and forwards platform-neutral `TouchContact` values into `TouchSurfaceEventMapper`.
 - UIKit is responsible only for converting active `UITouch` instances into contact IDs and coordinates.
+- Single-finger `touchesMoved` consumes UIKit coalesced touches and forwards each sample in order. Without this, `event.allTouches` only exposes the final delivered touch location and the first pointer event can contain several hardware samples' worth of accumulated movement.
 - Bonjour discovery uses `_trackpad-host._tcp` and resolves the selected service with `NWConnection`.
 - Manual IP entry remains intentional as a fallback.
+- QR pairing uses AVFoundation to scan `trackpad://pair?...` payloads and then fills host, port, and pairing code before connecting.
+- `NSCameraUsageDescription` is configured for QR pairing scans.
 - The connected bar polls `TrackpadHostClient.measureLatency()` every second and displays RTT in milliseconds.
 - The connected bar displays touch sampling and sent-event rates so stutter can be correlated with capture or transport behavior.
+- The connected bar displays the active `NWConnection` path as `Path Wi-Fi`, `Path Wired`, `Path Cellular Expensive`, or an unavailable state.
+- Wired paths are treated as cable-like candidates for future automatic transport preference. Direct arbitrary USB communication remains deferred because ordinary iOS apps do not have a general public USB data-channel API for Mac app control.
+- `ClientDiagnosticLogStore` persists bounded local diagnostic lines and can build an upload payload when the host requests logs. High-frequency temporary touch and mapper diagnostics were removed after the pointer and drag startup jumps were verified fixed.
 - High-frequency input events are enqueued into a single client send buffer. New frames are coalesced while a previous network send is in flight.
 - The current Apple-platform TCP path uses no-delay TCP parameters to avoid small input packets waiting behind Nagle-style buffering.
 - `TouchSurfaceEventMapper` ends an active two-finger gesture as soon as contact count drops below two so UIKit's staggered `touchesEnded` callbacks do not accidentally create a one-finger tap.
@@ -95,6 +104,8 @@ Frames are encoded with the shared `SessionFrameLineCodec` from `TrackpadKit`.
 - The connection panel is shown while disconnected; the connected surface is black.
 - The wire format is still JSON Lines. Binary framing is the next transport-efficiency milestone.
 - Device trust persistence and encrypted sessions are still deferred.
+- QR pairing currently supports the LAN TCP payload only and requires the QR host address to be reachable from the iPhone/iPad.
+- Automatic transport migration to a cable-like path is deferred until the protocol supports session resume and input-state handoff.
 
 ## Verification Status
 
@@ -191,6 +202,13 @@ The latest momentum seed verification also includes:
 
 ```text
 apps/ios/TrackpadIOSCore swift test: 34 tests passed
+xcodebuild TrackpadIOS Debug iPhone 17 simulator: BUILD SUCCEEDED
+```
+
+The latest cable-path diagnostics verification also includes:
+
+```text
+apps/ios/TrackpadIOSCore swift test: 38 tests passed
 xcodebuild TrackpadIOS Debug iPhone 17 simulator: BUILD SUCCEEDED
 ```
 

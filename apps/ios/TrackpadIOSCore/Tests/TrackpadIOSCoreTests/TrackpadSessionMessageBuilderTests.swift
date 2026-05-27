@@ -27,7 +27,7 @@ import TrackpadKit
     ])
 }
 
-@Test func sessionMessageBuilderCreatesInputFrame() throws {
+@Test func sessionMessageBuilderCreatesBinaryInputReport() throws {
     let event = InputEvent(
         sequenceNumber: 9,
         timestampNanos: 90,
@@ -35,8 +35,10 @@ import TrackpadKit
     )
 
     let data = try TrackpadSessionMessageBuilder.inputData(for: event)
-    var codec = SessionFrameLineCodec()
+    var codec = SessionStreamCodec()
 
+    #expect(data.count == InputReportBinaryCodec.frameLength)
+    #expect(data.first == InputReportBinaryCodec.magicByte)
     #expect(try codec.append(data) == [.input(event)])
 }
 
@@ -47,4 +49,20 @@ import TrackpadKit
     var codec = SessionFrameLineCodec()
 
     #expect(try codec.append(data) == [.ping(ping)])
+}
+
+@Test func sessionMessageBuilderCreatesClientLogUploadFrame() throws {
+    let upload = ClientLogUpload(
+        requestId: "request-1",
+        deviceId: "ios-1",
+        deviceName: "iPad",
+        createdAtNanos: 1_000,
+        content: "######### ios.client example",
+        truncated: false
+    )
+
+    let data = try TrackpadSessionMessageBuilder.clientLogUploadData(for: upload)
+    var codec = SessionFrameLineCodec()
+
+    #expect(try codec.append(data) == [.clientLogUpload(upload)])
 }
