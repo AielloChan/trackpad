@@ -23,16 +23,6 @@ public struct TouchContact: Equatable, Sendable {
     }
 }
 
-public struct ScrollVelocity: Equatable, Sendable {
-    public let dxPerSecond: Double
-    public let dyPerSecond: Double
-
-    public init(dxPerSecond: Double, dyPerSecond: Double) {
-        self.dxPerSecond = dxPerSecond
-        self.dyPerSecond = dyPerSecond
-    }
-}
-
 public struct TouchGestureConfiguration: Equatable, Sendable {
     public let tapMaximumDurationNanos: UInt64
     public let tapDragMaximumIntervalNanos: UInt64
@@ -78,7 +68,6 @@ public struct TouchSurfaceEventMapper {
     private var lastSingleTapEndNanos: UInt64?
     private var suppressSingleFingerTapUntilNanos: UInt64?
     public var gestureConfiguration: TouchGestureConfiguration
-    public private(set) var lastScrollVelocity: ScrollVelocity?
     private var nextSequenceNumber: UInt64 = 1
     private let timestampProvider: () -> UInt64
     private let tapMovementTolerance: Double = 8
@@ -109,19 +98,20 @@ public struct TouchSurfaceEventMapper {
     }
 
     public mutating func move(with contacts: [TouchContact]) -> [InputEvent] {
-        guard let currentPoint = trackedPoint(for: contacts) else {
-            return []
-        }
-
         guard var state = gestureState else {
             gestureState = makeGestureState(from: contacts)
+            return []
+        }
+        if state.kind == .twoFinger && contacts.count < 2 {
+            return []
+        }
+        guard let currentPoint = trackedPoint(for: contacts) else {
             return []
         }
 
         let timestamp = timestampProvider()
         let dx = currentPoint.x - state.previousPoint.x
         let dy = currentPoint.y - state.previousPoint.y
-        let previousTimeNanos = state.previousTimeNanos
         let distanceFromPreviousPoint = distance(dx: dx, dy: dy)
         state.previousPoint = currentPoint
         state.previousTimeNanos = timestamp
@@ -169,7 +159,6 @@ public struct TouchSurfaceEventMapper {
 
             let phase: ScrollPhase = state.didScroll ? .changed : .began
             state.didScroll = true
-            updateScrollVelocity(dx: dx, dy: dy, from: previousTimeNanos, to: timestamp)
             events.append(makeEvent(
                 timestampNanos: timestamp,
                 kind: .scroll(ScrollEvent(dx: dx, dy: dy, phase: phase))
@@ -199,13 +188,6 @@ public struct TouchSurfaceEventMapper {
         }
 
         return finishGesture(state)
-    }
-
-    public mutating func makeMomentumScrollEvent(dx: Double, dy: Double, phase: ScrollPhase = .changed) -> InputEvent {
-        makeEvent(
-            timestampNanos: timestampProvider(),
-            kind: .scroll(ScrollEvent(dx: dx, dy: dy, phase: phase, momentumPhase: phase))
-        )
     }
 
     private mutating func finishGesture(_ state: GestureState) -> [InputEvent] {
@@ -315,22 +297,6 @@ public struct TouchSurfaceEventMapper {
         return timestamp >= lastSingleTapEndNanos && timestamp - lastSingleTapEndNanos <= gestureConfiguration.tapDragMaximumIntervalNanos
     }
 
-    private mutating func updateScrollVelocity(dx: Double, dy: Double, from startNanos: UInt64, to endNanos: UInt64) {
-        guard endNanos > startNanos else {
-            return
-        }
-
-        let elapsedSeconds = Double(endNanos - startNanos) / 1_000_000_000
-        guard elapsedSeconds > 0 else {
-            return
-        }
-
-        lastScrollVelocity = ScrollVelocity(
-            dxPerSecond: dx / elapsedSeconds,
-            dyPerSecond: dy / elapsedSeconds
-        )
-    }
-
     private func trackedPoint(for contacts: [TouchContact]) -> TouchPoint? {
         switch contacts.count {
         case 1:
@@ -357,92 +323,5 @@ public struct TouchSurfaceEventMapper {
 
     public static func defaultTimestampNanos() -> UInt64 {
         UInt64(Date().timeIntervalSince1970 * 1_000_000_000)
-    }
-}
-
-public struct ScrollMomentumStep: Equatable, Sendable {
-    public let delayNanos: UInt64
-    public let dx: Double
-    public let dy: Double
-    public let phase: ScrollPhase
-
-    public init(delayNanos: UInt64, dx: Double, dy: Double, phase: ScrollPhase) {
-        self.delayNanos = delayNanos
-        self.dx = dx
-        self.dy = dy
-        self.phase = phase
-    }
-}
-
-public struct ScrollMomentumPlanner: Sendable {
-    private let frameIntervalNanos: UInt64
-    private let decay: Double
-    private let minimumDelta: Double
-    private let maximumStepCount: Int
-
-    public init(
-        frameIntervalNanos: UInt64 = 16_000_000,
-        decay: Double = 0.92,
-        minimumDelta: Double = 0.6,
-        maximumStepCount: Int = 72
-    ) {
-        self.frameIntervalNanos = frameIntervalNanos
-        self.decay = decay
-        self.minimumDelta = minimumDelta
-        self.maximumStepCount = maximumStepCount
-    }
-
-    public func steps(initialDx: Double, initialDy: Double) -> [ScrollMomentumStep] {
-        steps(initialDx: initialDx, initialDy: initialDy, applyInitialDecay: true)
-    }
-
-    public func steps(
-        initialVelocityDxPerSecond: Double,
-        initialVelocityDyPerSecond: Double,
-        amount: Double = 1
-    ) -> [ScrollMomentumStep] {
-        let frameIntervalSeconds = Double(frameIntervalNanos) / 1_000_000_000
-        let clampedAmount = min(max(amount, 0.2), 3)
-        return steps(
-            initialDx: initialVelocityDxPerSecond * frameIntervalSeconds * clampedAmount,
-            initialDy: initialVelocityDyPerSecond * frameIntervalSeconds * clampedAmount,
-            applyInitialDecay: false
-        )
-    }
-
-    private func steps(initialDx: Double, initialDy: Double, applyInitialDecay: Bool) -> [ScrollMomentumStep] {
-        var dx = initialDx * decay
-        var dy = initialDy * decay
-        if !applyInitialDecay {
-            dx = initialDx
-            dy = initialDy
-        }
-        guard abs(dx) >= minimumDelta || abs(dy) >= minimumDelta else {
-            return []
-        }
-
-        var steps: [ScrollMomentumStep] = []
-        for index in 1...maximumStepCount {
-            guard abs(dx) >= minimumDelta || abs(dy) >= minimumDelta else {
-                break
-            }
-
-            steps.append(ScrollMomentumStep(
-                delayNanos: UInt64(index) * frameIntervalNanos,
-                dx: dx,
-                dy: dy,
-                phase: .changed
-            ))
-            dx *= decay
-            dy *= decay
-        }
-
-        steps.append(ScrollMomentumStep(
-            delayNanos: UInt64(steps.count + 1) * frameIntervalNanos,
-            dx: 0,
-            dy: 0,
-            phase: .ended
-        ))
-        return steps
     }
 }

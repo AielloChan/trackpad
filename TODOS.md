@@ -41,13 +41,13 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] LAN TCP transport uses no-delay parameters for the current Apple-platform MVP.
 - [x] macOS host injects live dragged mouse events while the left button is held down.
 - [x] iOS two-finger scroll release no longer starts a one-finger tap state.
-- [x] iOS two-finger scroll release schedules first-pass decaying momentum scroll events.
+- [x] iOS two-finger scroll release sends a clean scroll-ended event without client-generated momentum.
 - [x] Shared scroll protocol carries optional momentum phase for trackpad-like inertial scrolling.
 - [x] macOS scroll injection sets continuous scroll, scroll phase, and momentum phase fields.
-- [x] iOS scroll momentum starts from recent two-finger scroll velocity instead of only final delta.
-- [x] iOS connected bar exposes pointer speed and scroll momentum amount sliders.
+- [x] Disabled earlier iOS velocity-based scroll momentum after real-device jump reports.
+- [x] iOS connected bar exposes pointer speed tuning.
 - [x] iOS pointer speed tuning scales pointer movement events before transport.
-- [x] iOS scroll momentum uses longer deceleration defaults and client-side amount tuning.
+- [x] Removed iOS scroll momentum amount tuning while momentum is disabled.
 - [x] iOS suppresses accidental single-finger taps for 80 ms after two-finger scroll release.
 - [x] iOS tap-then-second-press drag interval defaults to 140 ms after real-device tuning.
 - [x] iOS pointer speed defaults to 2.1x after real-device tuning.
@@ -55,7 +55,7 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] iOS tap-drag candidate state no longer suppresses small pointer movements before the drag threshold.
 - [x] macOS host maps consecutive tap events to click counts for double-click selection.
 - [x] macOS injected button events set CoreGraphics mouse click state.
-- [x] iOS scroll momentum seed preserves the dominant scroll axis when release samples contain cross-axis jitter.
+- [x] Removed iOS scroll momentum seed tracking while momentum is disabled.
 - [x] macOS host writes persistent diagnostic logs for connection, pairing, input, and command mapping.
 - [x] Generated Trackpad app icon is applied to both iOS and macOS app targets.
 - [x] Shared QR pairing payload encodes LAN host, port, pairing code, and service name.
@@ -72,6 +72,11 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] iOS client attempts a wired-only TCP connection before falling back to the default path.
 - [x] Replace high-frequency JSON input frames with compact HID-like binary input reports.
 - [x] Document the detailed v1 wire protocol in `protocol/v1/wire-protocol.md`.
+- [x] Diagnose two-finger scroll content jumping with targeted `#########` scroll logs.
+- [x] Disable iOS-generated scroll momentum after real-device jumps continued.
+- [x] Fix terminal reverse scroll when iOS reports one remaining touch before a two-finger end.
+- [ ] Manually verify two-finger scroll release no longer causes sudden inertial jumps on a real iPad.
+- [ ] Manually verify two-finger scroll release no longer emits a terminal reverse scroll on a real iPad.
 
 ## Near-Term Milestones
 
@@ -86,8 +91,8 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Basic tap, drag, right-click, and scroll gestures are normalized on iOS.
 - [x] Protocol-level ping/pong latency monitor is implemented over the MVP TCP session.
 - [x] First-pass input stream optimization avoids one async task per touch-move callback.
-- [x] Real-device gesture polish covers live drag injection, two-finger scroll end handling, and first-pass scroll momentum.
-- [x] First-pass scroll fidelity upgrade preserves momentum semantics from iOS through macOS CGEvent injection.
+- [x] Real-device gesture polish covers live drag injection and two-finger scroll end handling.
+- [x] Protocol and macOS host still preserve optional momentum semantics for future redesign.
 
 ## Verification Blockers
 
@@ -99,13 +104,14 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Build `TrackpadIOS` for the booted simulator with command-line target build.
 - [ ] Fix `TrackpadIOS` scheme destination discovery so `xcodebuild -showdestinations` lists installed simulators.
 - [ ] Manually compare touch sample Hz, sent event Hz, RTT, and perceived pointer smoothness on a real device.
-- [ ] Manually verify live window dragging, two-finger scroll release, and scroll momentum on a real iPhone/iPad.
-- [ ] Manually compare velocity-based momentum and macOS scroll phase behavior against native trackpad scrolling.
-- [ ] Manually tune pointer speed and scroll momentum amount on a real iPhone/iPad while connected to macOS.
+- [ ] Manually verify live window dragging and two-finger scroll release on a real iPhone/iPad.
+- [ ] Redesign velocity-based momentum before comparing against native trackpad scrolling.
+- [ ] Manually tune pointer speed on a real iPhone/iPad while connected to macOS.
 - [ ] Manually verify two-finger scroll release no longer causes accidental left click on a real iPhone/iPad.
 - [ ] Manually tune tap duration, drag interval, and scroll guard timing on a real iPhone/iPad.
 - [ ] Manually verify double-tap on iOS selects text or triggers native macOS double-click behavior.
-- [ ] Manually verify vertical scroll momentum is preserved when two-finger release contains small horizontal drift.
+- [ ] Manually verify two-finger scroll release stops cleanly when the release contains small horizontal drift.
+- [ ] Manually verify two-finger scroll release stops cleanly when iOS briefly reports one remaining touch before end.
 - [ ] Manually verify QR pairing on a real iPhone/iPad camera against the macOS host QR code.
 - [ ] Manually verify slow one-finger movement starts without a large first pointer jump on a real iPhone/iPad.
 - [ ] Manually verify whether an iPhone/iPad connected by USB reports the active host connection as wired/cable-like.

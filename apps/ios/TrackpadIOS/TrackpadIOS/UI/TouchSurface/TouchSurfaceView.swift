@@ -76,23 +76,13 @@ struct TouchSurfaceView: View {
                     .buttonStyle(.bordered)
             }
 
-            HStack(spacing: 12) {
-                tuningSlider(
-                    title: "Pointer",
-                    value: $model.pointerSpeedMultiplier,
-                    range: 0.2...3,
-                    step: 0.1,
-                    format: { String(format: "%.1fx", $0) }
-                )
-
-                tuningSlider(
-                    title: "Momentum",
-                    value: $model.scrollMomentumAmount,
-                    range: 0.2...3,
-                    step: 0.1,
-                    format: { String(format: "%.1fx", $0) }
-                )
-            }
+            tuningSlider(
+                title: "Pointer",
+                value: $model.pointerSpeedMultiplier,
+                range: 0.2...3,
+                step: 0.1,
+                format: { String(format: "%.1fx", $0) }
+            )
 
             VStack(spacing: 4) {
                 tuningSlider(

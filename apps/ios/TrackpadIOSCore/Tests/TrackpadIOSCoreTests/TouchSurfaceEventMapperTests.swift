@@ -414,6 +414,45 @@ import TrackpadKit
     #expect(finalEnd.isEmpty)
 }
 
+@Test func twoFingerScrollIgnoresSingleRemainingFingerMoveBeforeEnd() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 10, y: 10)),
+        TouchContact(id: 2, point: TouchPoint(x: 90, y: 10)),
+    ])
+
+    currentTime = 100
+    let scroll = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 10, y: 50)),
+        TouchContact(id: 2, point: TouchPoint(x: 90, y: 50)),
+    ])
+    currentTime = 120
+    let terminalSingleFingerMove = mapper.move(with: [
+        TouchContact(id: 2, point: TouchPoint(x: 90, y: 52)),
+    ])
+    currentTime = 130
+    let ended = mapper.end(with: [
+        TouchContact(id: 2, point: TouchPoint(x: 90, y: 52)),
+    ])
+
+    #expect(scroll == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 100,
+            kind: .scroll(ScrollEvent(dx: 0, dy: 40, phase: .began))
+        ),
+    ])
+    #expect(terminalSingleFingerMove.isEmpty)
+    #expect(ended == [
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 130,
+            kind: .scroll(ScrollEvent(dx: 0, dy: 0, phase: .ended))
+        ),
+    ])
+}
+
 @Test func twoFingerScrollSuppressesSingleFingerTapImmediatelyAfterRelease() {
     var currentTime: UInt64 = 0
     var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
@@ -470,33 +509,4 @@ import TrackpadKit
             kind: .tap(TapEvent(button: .left))
         ),
     ])
-}
-
-@Test func momentumScrollEventCarriesMomentumPhase() {
-    var mapper = TouchSurfaceEventMapper(timestampProvider: { 500 })
-
-    let event = mapper.makeMomentumScrollEvent(dx: 0, dy: 12, phase: .changed)
-
-    #expect(event == InputEvent(
-        sequenceNumber: 1,
-        timestampNanos: 500,
-        kind: .scroll(ScrollEvent(dx: 0, dy: 12, phase: .changed, momentumPhase: .changed))
-    ))
-}
-
-@Test func twoFingerScrollTracksRecentVelocity() {
-    var currentTime: UInt64 = 0
-    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
-    _ = mapper.begin(with: [
-        TouchContact(id: 1, point: TouchPoint(x: 0, y: 0)),
-        TouchContact(id: 2, point: TouchPoint(x: 20, y: 0)),
-    ])
-
-    currentTime = 16_000_000
-    _ = mapper.move(with: [
-        TouchContact(id: 1, point: TouchPoint(x: 0, y: 12)),
-        TouchContact(id: 2, point: TouchPoint(x: 20, y: 12)),
-    ])
-
-    #expect(mapper.lastScrollVelocity == ScrollVelocity(dxPerSecond: 0, dyPerSecond: 750))
 }

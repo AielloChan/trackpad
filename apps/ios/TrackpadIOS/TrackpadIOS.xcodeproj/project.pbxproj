@@ -19,7 +19,6 @@
 			210000000000000000000005 /* Transport/TrackpadSessionMessageBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000006 /* Transport/TrackpadSessionMessageBuilder.swift */; };
 			210000000000000000000007 /* Transport/TrackpadHostClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000008 /* Transport/TrackpadHostClient.swift */; };
 			210000000000000000000010 /* Touch/InputEventTuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000011 /* Touch/InputEventTuning.swift */; };
-			210000000000000000000012 /* Touch/ScrollMomentumSeedTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000013 /* Touch/ScrollMomentumSeedTracker.swift */; };
 			210000000000000000000014 /* Transport/NetworkPathSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000015 /* Transport/NetworkPathSnapshot.swift */; };
 			210000000000000000000016 /* Diagnostics/ClientDiagnosticLogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000017 /* Diagnostics/ClientDiagnosticLogStore.swift */; };
 			21000000000000000000000A /* Discovery/TrackpadHostAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21000000000000000000000B /* Discovery/TrackpadHostAddress.swift */; };
@@ -50,7 +49,6 @@
 			210000000000000000000006 /* Transport/TrackpadSessionMessageBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transport/TrackpadSessionMessageBuilder.swift; sourceTree = "<group>"; };
 			210000000000000000000008 /* Transport/TrackpadHostClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transport/TrackpadHostClient.swift; sourceTree = "<group>"; };
 			210000000000000000000011 /* Touch/InputEventTuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Touch/InputEventTuning.swift; sourceTree = "<group>"; };
-			210000000000000000000013 /* Touch/ScrollMomentumSeedTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Touch/ScrollMomentumSeedTracker.swift; sourceTree = "<group>"; };
 			210000000000000000000015 /* Transport/NetworkPathSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transport/NetworkPathSnapshot.swift; sourceTree = "<group>"; };
 			210000000000000000000017 /* Diagnostics/ClientDiagnosticLogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics/ClientDiagnosticLogStore.swift; sourceTree = "<group>"; };
 		21000000000000000000000B /* Discovery/TrackpadHostAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Discovery/TrackpadHostAddress.swift; sourceTree = "<group>"; };
@@ -154,7 +152,6 @@
 					21000000000000000000000F /* Discovery/BonjourTrackpadHostBrowser.swift */,
 					210000000000000000000002 /* Touch/TouchSurfaceEventMapper.swift */,
 					210000000000000000000011 /* Touch/InputEventTuning.swift */,
-					210000000000000000000013 /* Touch/ScrollMomentumSeedTracker.swift */,
 					210000000000000000000004 /* Transport/TrackpadConnectionConfiguration.swift */,
 				210000000000000000000006 /* Transport/TrackpadSessionMessageBuilder.swift */,
 				210000000000000000000008 /* Transport/TrackpadHostClient.swift */,
@@ -265,7 +262,6 @@
 					21000000000000000000000C /* Discovery/DiscoveredTrackpadHost.swift in Sources */,
 					21000000000000000000000E /* Discovery/BonjourTrackpadHostBrowser.swift in Sources */,
 					210000000000000000000010 /* Touch/InputEventTuning.swift in Sources */,
-					210000000000000000000012 /* Touch/ScrollMomentumSeedTracker.swift in Sources */,
 					210000000000000000000014 /* Transport/NetworkPathSnapshot.swift in Sources */,
 					210000000000000000000016 /* Diagnostics/ClientDiagnosticLogStore.swift in Sources */,
 					220000000000000000000001 /* TrackpadProtocol/InputEvent.swift in Sources */,

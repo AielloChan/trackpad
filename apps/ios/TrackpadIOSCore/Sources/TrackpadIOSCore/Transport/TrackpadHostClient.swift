@@ -8,6 +8,7 @@ public final class TrackpadHostClient: @unchecked Sendable {
     public var inputSendFailureHandler: (@Sendable (String) -> Void)?
     public var pathUpdateHandler: (@Sendable (NetworkPathSnapshot) -> Void)?
     public var connectionAttemptHandler: (@Sendable (TrackpadConnectionAttemptDiagnostic) -> Void)?
+    public var inputReportDiagnosticHandler: (@Sendable (String) -> Void)?
     public var logUploadProvider: (@Sendable (HostLogRequest) -> ClientLogUpload?)?
     public var connectionAttemptPlan = TrackpadConnectionAttemptPlan()
 
@@ -110,6 +111,10 @@ public final class TrackpadHostClient: @unchecked Sendable {
                 return
             }
 
+            if reports.containsScrollReport {
+                self.inputReportDiagnosticHandler?("enqueue reports=\(reports.reportDiagnosticSummary)")
+            }
+
             if let batch = self.sendBuffer.enqueue(reports) {
                 self.sendBufferedReports(batch)
             }
@@ -183,6 +188,10 @@ public final class TrackpadHostClient: @unchecked Sendable {
         guard let connection else {
             inputSendFailureHandler?(String(describing: TrackpadHostClientError.notConnected))
             return
+        }
+
+        if reports.containsScrollReport {
+            inputReportDiagnosticHandler?("send batch count=\(reports.count) reports=\(reports.reportDiagnosticSummary)")
         }
 
         let data: Data
@@ -337,6 +346,34 @@ public final class TrackpadHostClient: @unchecked Sendable {
             parameters.requiredInterfaceType = interfaceType
         }
         return parameters
+    }
+}
+
+private extension Array where Element == InputReport {
+    var containsScrollReport: Bool {
+        contains { report in
+            if case .scroll = report.kind {
+                return true
+            }
+
+            return false
+        }
+    }
+
+    var reportDiagnosticSummary: String {
+        map { report in
+            switch report.kind {
+            case .pointerMove:
+                return "seq=\(report.sequenceNumber):pointer"
+            case .pointerButton(let button, let phase):
+                return "seq=\(report.sequenceNumber):button(\(button.rawValue),\(phase.rawValue))"
+            case .tap(let button):
+                return "seq=\(report.sequenceNumber):tap(\(button.rawValue))"
+            case .scroll(let dx, let dy, let phase, let momentumPhase):
+                return "seq=\(report.sequenceNumber):scroll(dx=\(String(format: "%.3f", dx)),dy=\(String(format: "%.3f", dy)),phase=\(phase.rawValue),momentum=\(momentumPhase?.rawValue ?? "none"))"
+            }
+        }
+        .joined(separator: "|")
     }
 }
 

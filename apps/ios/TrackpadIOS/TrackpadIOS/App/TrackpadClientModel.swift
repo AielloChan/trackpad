@@ -22,7 +22,6 @@ final class TrackpadClientModel: ObservableObject {
     @Published private(set) var sentEventRateHz: Int?
     @Published private(set) var connectionPathLabel = "Path --"
     @Published var pointerSpeedMultiplier = 2.1
-    @Published var scrollMomentumAmount = 1.8
     @Published var tapMaximumDurationMilliseconds = 250.0
     @Published var tapDragMaximumIntervalMilliseconds = 140.0
     @Published var scrollReleaseTapSuppressionMilliseconds = 80.0
@@ -36,9 +35,6 @@ final class TrackpadClientModel: ObservableObject {
     private var isDiscoveryRunning = false
     private var didRunDebugAutomation = false
     private var latencyTask: Task<Void, Never>?
-    private var scrollMomentumTask: Task<Void, Never>?
-    private var scrollMomentumSeedTracker = ScrollMomentumSeedTracker()
-    private let scrollMomentumPlanner = ScrollMomentumPlanner()
     private var touchMoveSampleCounter = 0
     private var sentEventCounter = 0
     private var lastRateSampleNanos = DispatchTime.now().uptimeNanoseconds
@@ -62,6 +58,11 @@ final class TrackpadClientModel: ObservableObject {
         client.connectionAttemptHandler = { [weak self] diagnostic in
             Task { @MainActor [weak self] in
                 self?.recordDiagnosticLog("######### ios.transport \(diagnostic.message)")
+            }
+        }
+        client.inputReportDiagnosticHandler = { [weak self] message in
+            Task { @MainActor [weak self] in
+                self?.recordDiagnosticLog("######### ios.report \(message)")
             }
         }
         client.logUploadProvider = { [diagnosticLogStore, deviceId, deviceName] request in
@@ -169,7 +170,6 @@ final class TrackpadClientModel: ObservableObject {
 
     func disconnect() {
         stopLatencyUpdates()
-        stopScrollMomentum()
         client.disconnect()
         mapper.end()
         connectionPathLabel = "Path --"
@@ -182,7 +182,9 @@ final class TrackpadClientModel: ObservableObject {
         }
 
         applyGestureConfiguration()
-        stopScrollMomentum()
+        if contacts.count >= 2 {
+            logScrollTouchDiagnostic("begin contacts=\(contacts.scrollDiagnosticSummary)")
+        }
         send(mapper.begin(with: contacts))
     }
 
@@ -194,6 +196,7 @@ final class TrackpadClientModel: ObservableObject {
         applyGestureConfiguration()
         touchMoveSampleCounter += 1
         let events = mapper.move(with: contacts)
+        logScrollEvents("move contacts=\(contacts.scrollDiagnosticSummary)", events: events)
         send(events)
     }
 
@@ -204,7 +207,9 @@ final class TrackpadClientModel: ObservableObject {
             return
         }
 
-        send(mapper.end(with: contacts))
+        let events = mapper.end(with: contacts)
+        logScrollEvents("end contacts=\(contacts.scrollDiagnosticSummary)", events: events)
+        send(events)
     }
 
 #if DEBUG
@@ -288,7 +293,6 @@ final class TrackpadClientModel: ObservableObject {
             return
         }
 
-        processScrollState(from: events)
         let tunedEvents = InputEventTuning(pointerSpeedMultiplier: pointerSpeedMultiplier).apply(to: events)
         sentEventCounter += tunedEvents.count
         do {
@@ -353,89 +357,8 @@ final class TrackpadClientModel: ObservableObject {
         lastRateSampleNanos = now
     }
 
-    private func processScrollState(from events: [InputEvent]) {
-        for event in events {
-            guard case .scroll(let scroll) = event.kind else {
-                continue
-            }
-
-            switch scroll.phase {
-            case .began, .changed:
-                scrollMomentumSeedTracker.record(scroll: scroll, velocity: mapper.lastScrollVelocity)
-            case .ended:
-                startScrollMomentumIfNeeded()
-            }
-        }
-    }
-
-    private func startScrollMomentumIfNeeded() {
-        guard let seedVelocity = scrollMomentumSeedTracker.seedVelocity() else {
-            return
-        }
-
-        startScrollMomentum(steps: scrollMomentumPlanner.steps(
-            initialVelocityDxPerSecond: seedVelocity.dxPerSecond,
-            initialVelocityDyPerSecond: seedVelocity.dyPerSecond,
-            amount: scrollMomentumAmount
-        ))
-    }
-
-    private func startScrollMomentum(steps: [ScrollMomentumStep]) {
-        guard !steps.isEmpty else {
-            clearScrollMomentumSeed()
-            return
-        }
-
-        stopScrollMomentum()
-        scrollMomentumTask = Task { [weak self] in
-            var previousDelay: UInt64 = 0
-            for step in steps {
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                let delay = step.delayNanos > previousDelay ? step.delayNanos - previousDelay : 0
-                previousDelay = step.delayNanos
-                try? await Task.sleep(nanoseconds: delay)
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                await MainActor.run {
-                    self?.sendMomentumScrollStep(step)
-                }
-            }
-        }
-        clearScrollMomentumSeed()
-    }
-
-    private func sendMomentumScrollStep(_ step: ScrollMomentumStep) {
-        guard isConnected else {
-            return
-        }
-
-        let event = mapper.makeMomentumScrollEvent(dx: step.dx, dy: step.dy, phase: step.phase)
-        sentEventCounter += 1
-        do {
-            try client.enqueue([event])
-        } catch {
-            handleInputSendFailure(String(describing: error))
-        }
-    }
-
-    private func stopScrollMomentum() {
-        scrollMomentumTask?.cancel()
-        scrollMomentumTask = nil
-        clearScrollMomentumSeed()
-    }
-
-    private func clearScrollMomentumSeed() {
-        scrollMomentumSeedTracker.reset()
-    }
-
     private func handleInputSendFailure(_ message: String) {
         stopLatencyUpdates()
-        stopScrollMomentum()
         connectionState = .failed(message)
         client.disconnect()
     }
@@ -443,5 +366,66 @@ final class TrackpadClientModel: ObservableObject {
     func recordDiagnosticLog(_ message: String) {
         print(message)
         diagnosticLogStore.append(message)
+    }
+
+    private func logScrollTouchDiagnostic(_ message: String) {
+        recordDiagnosticLog("######### ios.scroll \(message)")
+    }
+
+    private func logScrollEvents(_ prefix: String, events: [InputEvent]) {
+        guard events.containsScrollEvent else {
+            return
+        }
+
+        logScrollDiagnostic("\(prefix) events=\(events.scrollDiagnosticSummary)")
+    }
+
+    private func logScrollDiagnostic(_ message: String) {
+        recordDiagnosticLog("######### ios.scroll \(message)")
+    }
+
+    private func formatScroll(_ value: Double) -> String {
+        String(format: "%.3f", value)
+    }
+}
+
+private extension Array where Element == TouchContact {
+    var scrollDiagnosticSummary: String {
+        guard !isEmpty else {
+            return "[]"
+        }
+
+        return map { contact in
+            "id=\(contact.id) x=\(String(format: "%.3f", contact.point.x)) y=\(String(format: "%.3f", contact.point.y))"
+        }
+        .joined(separator: ";")
+    }
+}
+
+private extension Array where Element == InputEvent {
+    var containsScrollEvent: Bool {
+        contains { event in
+            if case .scroll = event.kind {
+                return true
+            }
+
+            return false
+        }
+    }
+
+    var scrollDiagnosticSummary: String {
+        map { event in
+            switch event.kind {
+            case .pointerMove:
+                return "seq=\(event.sequenceNumber):pointer"
+            case .pointerButton(let button):
+                return "seq=\(event.sequenceNumber):button(\(button.button.rawValue),\(button.phase.rawValue))"
+            case .tap(let tap):
+                return "seq=\(event.sequenceNumber):tap(\(tap.button.rawValue))"
+            case .scroll(let scroll):
+                return "seq=\(event.sequenceNumber):scroll(dx=\(String(format: "%.3f", scroll.dx)),dy=\(String(format: "%.3f", scroll.dy)),phase=\(scroll.phase.rawValue),momentum=\(scroll.momentumPhase?.rawValue ?? "none"))"
+            }
+        }
+        .joined(separator: "|")
     }
 }

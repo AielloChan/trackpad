@@ -26,11 +26,11 @@ Phase 1 is functionally usable for local LAN testing:
 - Single-finger tap for left click.
 - Tap, quick second press, and movement for drag.
 - Two-finger tap for right click.
-- Two-finger scroll with first-pass momentum.
+- Two-finger scroll without client-generated inertial momentum.
 - Client-side latency, touch sample rate, and sent event rate display.
 - Active connection path display for Wi-Fi, cellular, wired/cable-like, and constrained paths.
 - Initial wired-only TCP connection attempt before default TCP fallback when the system exposes a cable-like path.
-- Live tuning sliders for pointer speed, scroll momentum, and gesture timing.
+- Live tuning sliders for pointer speed and gesture timing.
 - iOS sends high-frequency input as compact HID-like 32-byte binary reports.
 - Pending pointer and compatible scroll changed reports are coalesced while a previous send is still in flight.
 - macOS host input injection for movement, click, drag, scroll phase, momentum phase, and double-click click state.
