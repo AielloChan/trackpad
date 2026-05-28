@@ -111,7 +111,7 @@ public final class TrackpadHostClient: @unchecked Sendable {
                 return
             }
 
-            if reports.containsScrollReport {
+            if reports.containsScrollReport || reports.containsSystemActionReport {
                 self.inputReportDiagnosticHandler?("enqueue reports=\(reports.reportDiagnosticSummary)")
             }
 
@@ -190,7 +190,7 @@ public final class TrackpadHostClient: @unchecked Sendable {
             return
         }
 
-        if reports.containsScrollReport {
+        if reports.containsScrollReport || reports.containsSystemActionReport {
             inputReportDiagnosticHandler?("send batch count=\(reports.count) reports=\(reports.reportDiagnosticSummary)")
         }
 
@@ -353,6 +353,16 @@ private extension Array where Element == InputReport {
     var containsScrollReport: Bool {
         contains { report in
             if case .scroll = report.kind {
+                return true
+            }
+
+            return false
+        }
+    }
+
+    var containsSystemActionReport: Bool {
+        contains { report in
+            if case .systemAction = report.kind {
                 return true
             }
 

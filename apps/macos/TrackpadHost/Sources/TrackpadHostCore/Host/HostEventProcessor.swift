@@ -19,15 +19,9 @@ public final class HostEventProcessor {
 
     public func handle(_ event: InputEvent) {
         logger.debug(category: "input", "input sequence=\(event.sequenceNumber) \(event.logSummary)")
-        if event.isScroll {
-            logger.info(category: "input", "######### host.scroll input handledNext=\(handledEventCount + 1) sequence=\(event.sequenceNumber) timestamp=\(event.timestampNanos) \(event.logSummary)")
-        }
         let commands = mapper.commands(for: event)
         for command in commands {
             logger.debug(category: "input", "command \(command.logSummary)")
-            if command.isScroll {
-                logger.info(category: "input", "######### host.scroll command sequence=\(event.sequenceNumber) \(command.logSummary)")
-            }
             performer.perform(command)
         }
         handledEventCount += 1
@@ -35,14 +29,6 @@ public final class HostEventProcessor {
 }
 
 private extension InputEvent {
-    var isScroll: Bool {
-        if case .scroll = kind {
-            return true
-        }
-
-        return false
-    }
-
     var logSummary: String {
         switch kind {
         case .pointerMove(let move):
@@ -60,14 +46,6 @@ private extension InputEvent {
 }
 
 private extension MacInputCommand {
-    var isScroll: Bool {
-        if case .scroll = self {
-            return true
-        }
-
-        return false
-    }
-
     var logSummary: String {
         switch self {
         case .move(let dx, let dy):

@@ -57,12 +57,12 @@ final class TrackpadClientModel: ObservableObject {
         }
         client.connectionAttemptHandler = { [weak self] diagnostic in
             Task { @MainActor [weak self] in
-                self?.recordDiagnosticLog("######### ios.transport \(diagnostic.message)")
+                self?.recordDiagnosticLog("ios.transport \(diagnostic.message)")
             }
         }
         client.inputReportDiagnosticHandler = { [weak self] message in
             Task { @MainActor [weak self] in
-                self?.recordDiagnosticLog("######### ios.report \(message)")
+                self?.recordDiagnosticLog("ios.report \(message)")
             }
         }
         client.logUploadProvider = { [diagnosticLogStore, deviceId, deviceName] request in
@@ -185,6 +185,9 @@ final class TrackpadClientModel: ObservableObject {
         if contacts.count >= 2 {
             logScrollTouchDiagnostic("begin contacts=\(contacts.scrollDiagnosticSummary)")
         }
+        if contacts.count == 3 {
+            logSystemGestureDiagnostic("begin contacts=\(contacts.scrollDiagnosticSummary)")
+        }
         send(mapper.begin(with: contacts))
     }
 
@@ -196,6 +199,9 @@ final class TrackpadClientModel: ObservableObject {
         applyGestureConfiguration()
         touchMoveSampleCounter += 1
         let events = mapper.move(with: contacts)
+        if contacts.count == 3 {
+            logSystemGestureDiagnostic("move contacts=\(contacts.scrollDiagnosticSummary) events=\(events.eventDiagnosticSummary)")
+        }
         logScrollEvents("move contacts=\(contacts.scrollDiagnosticSummary)", events: events)
         send(events)
     }
@@ -208,6 +214,9 @@ final class TrackpadClientModel: ObservableObject {
         }
 
         let events = mapper.end(with: contacts)
+        if contacts.count < 3 && events.containsSystemActionEvent {
+            logSystemGestureDiagnostic("end contacts=\(contacts.scrollDiagnosticSummary) events=\(events.eventDiagnosticSummary)")
+        }
         logScrollEvents("end contacts=\(contacts.scrollDiagnosticSummary)", events: events)
         send(events)
     }
@@ -294,6 +303,9 @@ final class TrackpadClientModel: ObservableObject {
         }
 
         let tunedEvents = InputEventTuning(pointerSpeedMultiplier: pointerSpeedMultiplier).apply(to: events)
+        if tunedEvents.containsSystemActionEvent {
+            logSystemGestureDiagnostic("send events=\(tunedEvents.eventDiagnosticSummary)")
+        }
         sentEventCounter += tunedEvents.count
         do {
             try client.enqueue(tunedEvents)
@@ -369,7 +381,7 @@ final class TrackpadClientModel: ObservableObject {
     }
 
     private func logScrollTouchDiagnostic(_ message: String) {
-        recordDiagnosticLog("######### ios.scroll \(message)")
+        recordDiagnosticLog("ios.scroll \(message)")
     }
 
     private func logScrollEvents(_ prefix: String, events: [InputEvent]) {
@@ -381,7 +393,11 @@ final class TrackpadClientModel: ObservableObject {
     }
 
     private func logScrollDiagnostic(_ message: String) {
-        recordDiagnosticLog("######### ios.scroll \(message)")
+        recordDiagnosticLog("ios.scroll \(message)")
+    }
+
+    private func logSystemGestureDiagnostic(_ message: String) {
+        recordDiagnosticLog("ios.systemGesture \(message)")
     }
 
     private func formatScroll(_ value: Double) -> String {
@@ -413,7 +429,21 @@ private extension Array where Element == InputEvent {
         }
     }
 
+    var containsSystemActionEvent: Bool {
+        contains { event in
+            if case .systemAction = event.kind {
+                return true
+            }
+
+            return false
+        }
+    }
+
     var scrollDiagnosticSummary: String {
+        eventDiagnosticSummary
+    }
+
+    var eventDiagnosticSummary: String {
         map { event in
             switch event.kind {
             case .pointerMove:

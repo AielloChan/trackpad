@@ -26,10 +26,14 @@
 - [x] Gate macOS system actions with the host Mac's current three-finger trackpad settings.
 - [x] Fix macOS Space navigation to prefer the display under the current pointer.
 - [x] Suppress accidental single-finger taps immediately after a three-finger system gesture.
+- [x] Suppress residual reverse Space actions and two-finger taps immediately after a three-finger system gesture.
+- [x] Replace direct managed Spaces switching with `Control-Left` and `Control-Right` keyboard shortcut injection for left/right swipes.
+- [x] Diagnose macOS Automation denial for the `System Events` Space-switching path.
+- [x] Add an explicit host app Automation permission status and request action.
 - [x] Update protocol and project documentation.
 - [x] Run package, iOS core, and macOS host tests.
 - [x] Build the iOS app for the connected real device.
-- [ ] Manually verify gestures on a real iPhone/iPad against macOS.
+- [x] Manually verify gestures on a real iPhone/iPad against macOS.
 
 ## Verification
 
@@ -40,6 +44,11 @@
 - macOS host reads `TrackpadThreeFingerVertSwipeGesture`, `TrackpadThreeFingerHorizSwipeGesture`, and `TrackpadThreeFingerDrag`; current local values are vertical `2`, horizontal `2`, drag `0`.
 - `swift test` passed in `apps/macos/TrackpadHost` with 35 tests after adding pointer-display Space selection coverage.
 - `swift test` passed in `apps/ios/TrackpadIOSCore` with 42 tests after adding three-finger post-gesture tap suppression coverage.
+- `swift test` passed in `apps/ios/TrackpadIOSCore` with 44 tests after adding residual reverse Space and two-finger tap suppression coverage.
+- Direct `CGSManagedDisplaySetCurrentSpace` switching was removed from the host because it did not match the requested `Control-Left` / `Control-Right` behavior.
+- Direct CGEvent `Control-Left` / `Control-Right` posting was verified not to switch Spaces on the local Mac, while `System Events` can trigger the same shortcuts when Automation permission is granted.
+- `TrackpadHostApp` now declares `NSAppleEventsUsageDescription`, exposes Automation permission status, and can request access to control `System Events`.
+- Real-device verification confirmed three-finger left/right Space switching works after granting Automation permission.
 - `xcodebuild` passed for the connected iOS device. The build still reports the existing orientation warning.
 - `xcrun devicectl device install app` installed `com.trackpad.ios` on the connected device.
 - Automatic iOS launch was blocked because the device was locked.

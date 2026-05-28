@@ -513,6 +513,75 @@ import TrackpadKit
     #expect(suppressedEnd.isEmpty)
 }
 
+@Test func threeFingerSystemActionSuppressesResidualTwoFingerTapAfterRelease() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 100, y: 100)),
+        TouchContact(id: 2, point: TouchPoint(x: 140, y: 100)),
+        TouchContact(id: 3, point: TouchPoint(x: 180, y: 100)),
+    ])
+
+    currentTime = 100_000_000
+    _ = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 30, y: 100)),
+        TouchContact(id: 2, point: TouchPoint(x: 70, y: 100)),
+        TouchContact(id: 3, point: TouchPoint(x: 110, y: 100)),
+    ])
+    currentTime = 200_000_000
+    _ = mapper.end(with: [])
+    currentTime = 260_000_000
+    let suppressedBegin = mapper.begin(with: [
+        TouchContact(id: 4, point: TouchPoint(x: 40, y: 40)),
+        TouchContact(id: 5, point: TouchPoint(x: 80, y: 40)),
+    ])
+    currentTime = 280_000_000
+    let suppressedEnd = mapper.end(with: [])
+
+    #expect(suppressedBegin.isEmpty)
+    #expect(suppressedEnd.isEmpty)
+}
+
+@Test func threeFingerSystemActionSuppressesImmediateOppositeSystemAction() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 100, y: 100)),
+        TouchContact(id: 2, point: TouchPoint(x: 140, y: 100)),
+        TouchContact(id: 3, point: TouchPoint(x: 180, y: 100)),
+    ])
+
+    currentTime = 100_000_000
+    let firstAction = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 30, y: 100)),
+        TouchContact(id: 2, point: TouchPoint(x: 70, y: 100)),
+        TouchContact(id: 3, point: TouchPoint(x: 110, y: 100)),
+    ])
+    currentTime = 200_000_000
+    _ = mapper.end(with: [])
+    currentTime = 260_000_000
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 30, y: 100)),
+        TouchContact(id: 2, point: TouchPoint(x: 70, y: 100)),
+        TouchContact(id: 3, point: TouchPoint(x: 110, y: 100)),
+    ])
+    currentTime = 300_000_000
+    let suppressedOppositeAction = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 120, y: 100)),
+        TouchContact(id: 2, point: TouchPoint(x: 160, y: 100)),
+        TouchContact(id: 3, point: TouchPoint(x: 200, y: 100)),
+    ])
+
+    #expect(firstAction == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 100_000_000,
+            kind: .systemAction(SystemActionEvent(action: .nextSpace))
+        ),
+    ])
+    #expect(suppressedOppositeAction.isEmpty)
+}
+
 @Test func twoFingerScrollSuppressesSingleFingerTapImmediatelyAfterRelease() {
     var currentTime: UInt64 = 0
     var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })

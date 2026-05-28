@@ -302,7 +302,7 @@ three-finger swipe right -> systemAction(previousSpace)
 three-finger swipe left  -> systemAction(nextSpace)
 ```
 
-The macOS host reads the current three-finger trackpad settings before executing these actions. If three-finger vertical or horizontal swipes are disabled, or three-finger drag is enabled, the corresponding remote three-finger system actions are ignored. Mission Control and App Expose use Dock's Mission Control notification entry point on macOS so they do not depend on the user's keyboard shortcut settings. Space navigation uses the current display's managed Spaces API and falls back to Control-Left or Control-Right if that API is unavailable.
+The macOS host reads the current three-finger trackpad settings before executing these actions. If three-finger vertical or horizontal swipes are disabled, or three-finger drag is enabled, the corresponding remote three-finger system actions are ignored. Mission Control and App Expose use Dock's Mission Control notification entry point on macOS so they do not depend on the user's keyboard shortcut settings. Space navigation is intentionally mapped to the same keyboard shortcut path as `Control-Left` and `Control-Right`.
 
 ## Coalescing Rules
 

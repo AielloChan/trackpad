@@ -78,6 +78,10 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Implement three-finger swipe gestures for Mission Control, App Expose, and Spaces navigation.
 - [x] Fix three-finger Space navigation to target the display under the current pointer instead of the first managed display.
 - [x] Suppress accidental single-finger tap immediately after a three-finger system gesture.
+- [x] Suppress residual reverse Space actions and two-finger taps immediately after a three-finger system gesture.
+- [x] Map three-finger left/right Space navigation to `Control-Left` and `Control-Right` instead of direct managed Spaces switching.
+- [x] Diagnose three-finger left/right Space navigation reaching macOS but failing on missing Automation permission.
+- [x] Add macOS host Automation permission status and request path for `System Events`.
 - [ ] Manually verify two-finger scroll release no longer causes sudden inertial jumps on a real iPad.
 - [ ] Manually verify two-finger scroll release no longer emits a terminal reverse scroll on a real iPad.
 
@@ -121,7 +125,8 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [ ] Manually verify whether an iPhone/iPad connected by USB reports the active host connection as wired/cable-like.
 - [x] Inspect reproduced one-finger pointer jump in macOS `#########` host logs.
 - [ ] Manually verify host-triggered client log upload writes an iOS log file on macOS.
-- [ ] Manually verify three-finger swipe up/down/left/right on a real iPhone/iPad.
+- [x] Manually verify three-finger swipe up/down/left/right on a real iPhone/iPad.
+- [ ] Manually verify `TrackpadHostApp` Automation permission stays granted after restart and three-finger left/right changes Spaces.
 
 ## Deferred
 

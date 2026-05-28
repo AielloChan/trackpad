@@ -27,15 +27,18 @@ public struct TouchGestureConfiguration: Equatable, Sendable {
     public let tapMaximumDurationNanos: UInt64
     public let tapDragMaximumIntervalNanos: UInt64
     public let scrollReleaseTapSuppressionNanos: UInt64
+    public let systemActionReleaseSuppressionNanos: UInt64
 
     public init(
         tapMaximumDurationMilliseconds: Double = 250,
         tapDragMaximumIntervalMilliseconds: Double = 140,
-        scrollReleaseTapSuppressionMilliseconds: Double = 80
+        scrollReleaseTapSuppressionMilliseconds: Double = 80,
+        systemActionReleaseSuppressionMilliseconds: Double = 320
     ) {
         tapMaximumDurationNanos = Self.nanoseconds(from: tapMaximumDurationMilliseconds, range: 60...500)
         tapDragMaximumIntervalNanos = Self.nanoseconds(from: tapDragMaximumIntervalMilliseconds, range: 40...250)
         scrollReleaseTapSuppressionNanos = Self.nanoseconds(from: scrollReleaseTapSuppressionMilliseconds, range: 0...250)
+        systemActionReleaseSuppressionNanos = Self.nanoseconds(from: systemActionReleaseSuppressionMilliseconds, range: 80...600)
     }
 
     private static func nanoseconds(from milliseconds: Double, range: ClosedRange<Double>) -> UInt64 {
@@ -69,6 +72,8 @@ public struct TouchSurfaceEventMapper {
     private var gestureState: GestureState?
     private var lastSingleTapEndNanos: UInt64?
     private var suppressSingleFingerTapUntilNanos: UInt64?
+    private var suppressTapUntilNanos: UInt64?
+    private var suppressSystemActionUntilNanos: UInt64?
     public var gestureConfiguration: TouchGestureConfiguration
     private var nextSequenceNumber: UInt64 = 1
     private let timestampProvider: () -> UInt64
@@ -241,7 +246,7 @@ public struct TouchSurfaceEventMapper {
                     kind: .scroll(ScrollEvent(dx: 0, dy: 0, phase: .ended))
                 ))
                 suppressSingleFingerTapUntilNanos = timestamp + gestureConfiguration.scrollReleaseTapSuppressionNanos
-            } else if timestamp - state.startTimeNanos <= gestureConfiguration.tapMaximumDurationNanos && state.maxDistanceFromStart <= tapMovementTolerance {
+            } else if !state.suppressSingleFingerTap && timestamp - state.startTimeNanos <= gestureConfiguration.tapMaximumDurationNanos && state.maxDistanceFromStart <= tapMovementTolerance {
                 events.append(makeEvent(
                     timestampNanos: timestamp,
                     kind: .tap(TapEvent(button: .right))
@@ -251,6 +256,8 @@ public struct TouchSurfaceEventMapper {
             lastSingleTapEndNanos = nil
             if state.didEmitSystemAction {
                 suppressSingleFingerTapUntilNanos = timestamp + gestureConfiguration.scrollReleaseTapSuppressionNanos
+                suppressTapUntilNanos = timestamp + gestureConfiguration.systemActionReleaseSuppressionNanos
+                suppressSystemActionUntilNanos = timestamp + gestureConfiguration.systemActionReleaseSuppressionNanos
             }
         }
 
@@ -284,7 +291,7 @@ public struct TouchSurfaceEventMapper {
         let timestamp = timestampProvider()
         switch contacts.count {
         case 1:
-            let shouldSuppressSingleTap = isSingleFingerTapSuppressed(at: timestamp)
+            let shouldSuppressSingleTap = isSingleFingerTapSuppressed(at: timestamp) || isTapSuppressed(at: timestamp)
             return GestureState(
                 kind: .singleFinger,
                 startTimeNanos: timestamp,
@@ -300,7 +307,8 @@ public struct TouchSurfaceEventMapper {
                 startTimeNanos: timestamp,
                 startPoint: point,
                 previousPoint: point,
-                previousTimeNanos: timestamp
+                previousTimeNanos: timestamp,
+                suppressSingleFingerTap: isTapSuppressed(at: timestamp)
             )
         case 3:
             return GestureState(
@@ -308,7 +316,8 @@ public struct TouchSurfaceEventMapper {
                 startTimeNanos: timestamp,
                 startPoint: point,
                 previousPoint: point,
-                previousTimeNanos: timestamp
+                previousTimeNanos: timestamp,
+                didEmitSystemAction: isSystemActionSuppressed(at: timestamp)
             )
         default:
             return nil
@@ -338,6 +347,22 @@ public struct TouchSurfaceEventMapper {
         }
 
         return timestamp <= suppressSingleFingerTapUntilNanos
+    }
+
+    private func isTapSuppressed(at timestamp: UInt64) -> Bool {
+        guard let suppressTapUntilNanos else {
+            return false
+        }
+
+        return timestamp <= suppressTapUntilNanos
+    }
+
+    private func isSystemActionSuppressed(at timestamp: UInt64) -> Bool {
+        guard let suppressSystemActionUntilNanos else {
+            return false
+        }
+
+        return timestamp <= suppressSystemActionUntilNanos
     }
 
     private func isWithinTapDragInterval(_ timestamp: UInt64) -> Bool {

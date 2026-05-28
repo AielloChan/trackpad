@@ -99,6 +99,7 @@ Transport is intentionally abstracted. The MVP uses Bonjour plus direct TCP on t
 - Swift toolchain provided by Xcode.
 - iPhone/iPad or iOS Simulator for the client. QR scanning requires a real device with camera permission.
 - Accessibility permission granted to the running macOS host app or host CLI before input injection can work.
+- Automation permission granted for `TrackpadHostApp` to control `System Events` before three-finger left/right Space navigation can work.
 
 ## Build and Run
 

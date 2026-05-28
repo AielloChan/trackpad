@@ -17,6 +17,10 @@ struct HostStatusView: View {
                     model.requestPermission()
                 }
 
+                Button("Request Automation") {
+                    model.requestAutomationPermission()
+                }
+
                 Button("Refresh") {
                     model.refreshPermission()
                 }
@@ -76,6 +80,7 @@ struct HostStatusView: View {
     private var statusRows: some View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 8) {
             statusRow("Permission", model.isTrusted ? "Granted" : "Required", model.isTrusted ? .green : .orange)
+            statusRow("Automation", model.hasAutomationPermission ? "Granted" : "Required for Spaces", model.hasAutomationPermission ? .green : .orange)
             statusRow("Server", model.status.state.rawValue.capitalized, model.status.state == .running ? .green : .secondary)
             statusRow("Pairing Code", model.pairingCode.value, .primary)
             statusRow("Port", model.status.port.map(String.init) ?? "-", .secondary)

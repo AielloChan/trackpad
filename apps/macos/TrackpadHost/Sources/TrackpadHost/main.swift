@@ -8,9 +8,7 @@ let arguments = Array(CommandLine.arguments.dropFirst())
 let command = arguments.first
 let defaultDevelopmentPairingCode = PairingCode("123456")
 let logger = FileHostLogger()
-let injector = MacInputInjector(diagnostics: { message in
-    logger.info(category: "input", message)
-})
+let injector = MacInputInjector(logger: logger)
 
 func logLine(_ message: String) {
     print(message)

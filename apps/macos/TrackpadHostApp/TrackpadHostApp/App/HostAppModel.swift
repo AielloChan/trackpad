@@ -4,6 +4,7 @@ import TrackpadHostCore
 @MainActor
 final class HostAppModel: ObservableObject {
     @Published private(set) var isTrusted = AccessibilityPermission.isTrusted
+    @Published private(set) var hasAutomationPermission = false
     @Published private(set) var status = HostRuntimeStatus.stopped
     @Published private(set) var pairingCode = PairingCode.generate()
     @Published private(set) var pairingQRCodePayload: HostPairingQRCodePayload?
@@ -26,8 +27,13 @@ final class HostAppModel: ObservableObject {
         refreshPermission()
     }
 
+    func requestAutomationPermission() {
+        hasAutomationPermission = AutomationPermission.requestSystemEventsAccess(logger: logger)
+    }
+
     func refreshPermission() {
         isTrusted = AccessibilityPermission.isTrusted
+        hasAutomationPermission = AutomationPermission.checkSystemEventsAccess(logger: logger)
         refreshPairingQRCodePayload()
     }
 
@@ -38,12 +44,7 @@ final class HostAppModel: ObservableObject {
 
         logger.info(category: "app", "starting host app server logPath=\(logger.fileURL.path)")
         refreshPairingQRCodePayload()
-        let processor = HostEventProcessor(
-            performer: MacInputInjector(diagnostics: { [logger] message in
-                logger.info(category: "input", message)
-            }),
-            logger: logger
-        )
+        let processor = HostEventProcessor(performer: MacInputInjector(logger: logger), logger: logger)
         let server = LanHostServer(
             pairingPolicy: PairingPolicy(requiredCode: pairingCode),
             processor: processor,

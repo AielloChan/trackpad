@@ -4,10 +4,10 @@ import Foundation
 import TrackpadKit
 
 public struct MacInputInjector: Sendable {
-    private let diagnostics: (@Sendable (String) -> Void)?
+    private let logger: any HostLogging
 
-    public init(diagnostics: (@Sendable (String) -> Void)? = nil) {
-        self.diagnostics = diagnostics
+    public init(logger: any HostLogging = DisabledHostLogger()) {
+        self.logger = logger
     }
 
     public func perform(_ command: MacInputCommand) {
@@ -83,20 +83,48 @@ public struct MacInputInjector: Sendable {
     }
 
     private func postSystemAction(_ action: SystemAction) {
+        logger.info(category: "input", "systemAction action=\(action.rawValue)")
         switch action {
         case .missionControl:
             postExposeNotification(named: "com.apple.expose.awake")
         case .appExpose:
             postExposeNotification(named: "com.apple.expose.front.awake")
         case .previousSpace:
-            if !MacSpacesNavigator().move(.previous, diagnostics: diagnostics) {
-                postKey(action.keyCode, flags: action.flags)
-            }
+            postSpaceShortcut(action)
         case .nextSpace:
-            if !MacSpacesNavigator().move(.next, diagnostics: diagnostics) {
-                postKey(action.keyCode, flags: action.flags)
-            }
+            postSpaceShortcut(action)
         }
+    }
+
+    private func postSpaceShortcut(_ action: SystemAction) {
+        if postSpaceShortcutWithSystemEvents(action) {
+            logger.info(category: "input", "systemEvents posted action=\(action.rawValue) keyCode=\(action.keyCode)")
+            return
+        }
+
+        logger.warning(category: "input", "systemEvents failed action=\(action.rawValue) fallback=CGEvent")
+        postKey(action.keyCode, flags: action.flags)
+    }
+
+    private func postSpaceShortcutWithSystemEvents(_ action: SystemAction) -> Bool {
+        let source = """
+        tell application "System Events"
+            key code \(action.keyCode) using control down
+        end tell
+        """
+        var error: NSDictionary?
+        guard let script = NSAppleScript(source: source) else {
+            logger.error(category: "input", "systemEvents scriptCreateFailed action=\(action.rawValue)")
+            return false
+        }
+
+        script.executeAndReturnError(&error)
+        if let error {
+            logger.error(category: "input", "systemEvents error action=\(action.rawValue) error=\(error)")
+            return false
+        }
+
+        return true
     }
 
     private func postExposeNotification(named name: String) {
@@ -115,13 +143,19 @@ public struct MacInputInjector: Sendable {
     }
 
     private func postKey(_ keyCode: CGKeyCode, flags: CGEventFlags) {
+        let trusted = AccessibilityPermission.isTrusted
         let source = CGEventSource(stateID: .hidSystemState)
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
+        logger.info(
+            category: "input",
+            "key prepare keyCode=\(keyCode) flagsRaw=\(flags.rawValue) sourceNil=\(source == nil) keyDownNil=\(keyDown == nil) keyUpNil=\(keyUp == nil) trusted=\(trusted)"
+        )
         keyDown?.flags = flags
         keyUp?.flags = flags
         keyDown?.post(tap: .cghidEventTap)
         keyUp?.post(tap: .cghidEventTap)
+        logger.info(category: "input", "key posted keyCode=\(keyCode) flagsRaw=\(flags.rawValue)")
     }
 }
 
