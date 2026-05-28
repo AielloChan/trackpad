@@ -8,13 +8,17 @@ public enum InputEventClient {
         host: String = "127.0.0.1",
         port: UInt16 = HostDefaults.tcpPort,
         pairingCode: PairingCode,
+        trustedClientKey: String? = nil,
+        deviceId: String = "trackpad-cli",
+        deviceName: String = "Trackpad CLI",
         timeout: TimeInterval = 3
     ) throws {
         let hello = ClientHello(
             protocolVersion: 1,
-            deviceId: "trackpad-cli",
-            deviceName: "Trackpad CLI",
-            pairingCode: pairingCode.value
+            deviceId: deviceId,
+            deviceName: deviceName,
+            pairingCode: pairingCode.value,
+            trustedClientKey: trustedClientKey
         )
         let data = try SessionFrameLineCodec.encode(.clientHello(hello))
             + InputReportBinaryCodec.encode(InputReport(event: event))

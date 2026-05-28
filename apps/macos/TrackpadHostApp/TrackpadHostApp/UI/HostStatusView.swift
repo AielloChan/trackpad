@@ -1,4 +1,5 @@
 import SwiftUI
+import TrackpadKit
 import TrackpadHostCore
 
 struct HostStatusView: View {
@@ -11,6 +12,8 @@ struct HostStatusView: View {
             pairingQRCode
 
             statusRows
+
+            configurationControls
 
             HStack {
                 Button("Request Permission") {
@@ -48,7 +51,28 @@ struct HostStatusView: View {
             .disabled(model.status.state == .running || model.status.state == .starting)
         }
         .padding(24)
-        .frame(width: 560)
+        .frame(width: 620)
+        .onChange(of: model.pointerSpeedMultiplier) { _, _ in
+            model.syncConfigurationFromControls()
+        }
+        .onChange(of: model.scrollMomentumAmount) { _, _ in
+            model.syncConfigurationFromControls()
+        }
+        .onChange(of: model.scrollMomentumDecayRate) { _, _ in
+            model.syncConfigurationFromControls()
+        }
+        .onChange(of: model.scrollMomentumTailWindowMilliseconds) { _, _ in
+            model.syncConfigurationFromControls()
+        }
+        .onChange(of: model.tapMaximumDurationMilliseconds) { _, _ in
+            model.syncConfigurationFromControls()
+        }
+        .onChange(of: model.tapDragMaximumIntervalMilliseconds) { _, _ in
+            model.syncConfigurationFromControls()
+        }
+        .onChange(of: model.scrollReleaseTapSuppressionMilliseconds) { _, _ in
+            model.syncConfigurationFromControls()
+        }
     }
 
     @ViewBuilder
@@ -97,6 +121,80 @@ struct HostStatusView: View {
             if let lastError = model.status.lastError {
                 statusRow("Error", lastError, .red)
             }
+        }
+    }
+
+    private var configurationControls: some View {
+        Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
+            configurationSlider(
+                "Pointer",
+                value: $model.pointerSpeedMultiplier,
+                range: TrackpadConfigurationLimits.pointerSpeedMultiplier,
+                step: 0.1,
+                text: String(format: "%.1fx", model.pointerSpeedMultiplier)
+            )
+            configurationSlider(
+                "Momentum",
+                value: $model.scrollMomentumAmount,
+                range: TrackpadConfigurationLimits.scrollMomentumAmount,
+                step: 0.1,
+                text: String(format: "%.1fx", model.scrollMomentumAmount)
+            )
+            configurationSlider(
+                "Decel",
+                value: $model.scrollMomentumDecayRate,
+                range: TrackpadConfigurationLimits.scrollMomentumDecayRate,
+                step: 0.005,
+                text: String(format: "%.3f", model.scrollMomentumDecayRate)
+            )
+            configurationSlider(
+                "Tail",
+                value: $model.scrollMomentumTailWindowMilliseconds,
+                range: TrackpadConfigurationLimits.scrollMomentumTailWindowMilliseconds,
+                step: 10,
+                text: "\(Int(model.scrollMomentumTailWindowMilliseconds.rounded())) ms"
+            )
+            configurationSlider(
+                "Tap",
+                value: $model.tapMaximumDurationMilliseconds,
+                range: TrackpadConfigurationLimits.tapMaximumDurationMilliseconds,
+                step: 10,
+                text: "\(Int(model.tapMaximumDurationMilliseconds.rounded())) ms"
+            )
+            configurationSlider(
+                "Drag",
+                value: $model.tapDragMaximumIntervalMilliseconds,
+                range: TrackpadConfigurationLimits.tapDragMaximumIntervalMilliseconds,
+                step: 10,
+                text: "\(Int(model.tapDragMaximumIntervalMilliseconds.rounded())) ms"
+            )
+            configurationSlider(
+                "Scroll Guard",
+                value: $model.scrollReleaseTapSuppressionMilliseconds,
+                range: TrackpadConfigurationLimits.scrollReleaseTapSuppressionMilliseconds,
+                step: 10,
+                text: "\(Int(model.scrollReleaseTapSuppressionMilliseconds.rounded())) ms"
+            )
+        }
+    }
+
+    private func configurationSlider(
+        _ label: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double,
+        text: String
+    ) -> some View {
+        GridRow {
+            Text(label)
+                .foregroundStyle(.secondary)
+                .frame(width: 92, alignment: .leading)
+            Slider(value: value, in: range, step: step)
+                .frame(width: 340)
+            Text(text)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 72, alignment: .trailing)
         }
     }
 

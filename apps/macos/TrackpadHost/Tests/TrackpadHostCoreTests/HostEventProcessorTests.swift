@@ -54,6 +54,46 @@ import TrackpadKit
     #expect(logger.messages.contains { $0.contains("command scroll dx=4.0 dy=-8.0 phase=changed momentum=changed") })
 }
 
+@Test func hostEventProcessorCancelsScheduledScrollMomentumOnContactBegin() async throws {
+    let performer = RecordingInputPerformer()
+    let processor = HostEventProcessor(
+        scrollMomentumSynthesizer: MacScrollMomentumSynthesizer(
+            settings: ScrollMomentumSettings(amount: 6, decayRate: 0.95, tailWindowMilliseconds: 120),
+            frameIntervalNanos: 20_000_000
+        ),
+        performer: performer
+    )
+
+    processor.handle(InputEvent(
+        sequenceNumber: 1,
+        timestampNanos: 0,
+        kind: .scroll(ScrollEvent(dx: 0, dy: 20, phase: .began))
+    ))
+    processor.handle(InputEvent(
+        sequenceNumber: 2,
+        timestampNanos: 16_000_000,
+        kind: .scroll(ScrollEvent(dx: 0, dy: 24, phase: .changed))
+    ))
+    processor.handle(InputEvent(
+        sequenceNumber: 3,
+        timestampNanos: 32_000_000,
+        kind: .scroll(ScrollEvent(dx: 0, dy: 0, phase: .ended))
+    ))
+    processor.handle(InputEvent(
+        sequenceNumber: 4,
+        timestampNanos: 40_000_000,
+        kind: .contact(ContactEvent(phase: .began, contactCount: 1))
+    ))
+
+    try await Task.sleep(nanoseconds: 80_000_000)
+
+    #expect(performer.commands == [
+        .scroll(dx: 0, dy: 20, phase: .began, momentumPhase: nil),
+        .scroll(dx: 0, dy: 24, phase: .changed, momentumPhase: nil),
+        .scroll(dx: 0, dy: 0, phase: .ended, momentumPhase: nil),
+    ])
+}
+
 private final class RecordingInputPerformer: MacInputPerforming {
     private(set) var commands: [MacInputCommand] = []
 

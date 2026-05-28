@@ -68,7 +68,7 @@ private extension InputEvent {
             return true
         case .scroll(let scroll):
             return scroll.phase == .changed
-        case .pointerButton, .tap, .systemAction:
+        case .pointerButton, .tap, .systemAction, .contact:
             return false
         }
     }

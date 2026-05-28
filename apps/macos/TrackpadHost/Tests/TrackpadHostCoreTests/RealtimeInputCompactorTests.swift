@@ -36,6 +36,26 @@ import TrackpadKit
     ])
 }
 
+@Test func realtimeInputCompactorKeepsContactBoundaryEvents() {
+    let compactor = RealtimeInputCompactor(maxRealtimeAgeNanos: 10)
+    let contact = InputEvent(
+        sequenceNumber: 2,
+        timestampNanos: 100,
+        kind: .contact(ContactEvent(phase: .began, contactCount: 1))
+    )
+
+    let compacted = compactor.compact([
+        .input(pointerMove(sequence: 1, timestamp: 1, dx: 20, dy: 0)),
+        .input(contact),
+        .input(pointerMove(sequence: 3, timestamp: 100, dx: 2, dy: 0)),
+    ])
+
+    #expect(compacted == [
+        .input(contact),
+        .input(pointerMove(sequence: 3, timestamp: 100, dx: 2, dy: 0)),
+    ])
+}
+
 @Test func realtimeInputCompactorDoesNotCoalesceAcrossFrames() {
     let compactor = RealtimeInputCompactor(maxRealtimeAgeNanos: 1_000)
     let pong = SessionFrame.pong(SessionPong(id: 1, clientSentNanos: 10, hostReceivedNanos: 20))

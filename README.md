@@ -22,22 +22,26 @@ Phase 1 is functionally usable for local LAN testing:
 - Bonjour discovery and manual IP connection fallback.
 - QR-code pairing from the macOS host app to the iOS client.
 - Six-digit pairing gate before input is processed.
+- JSONL-backed trusted-client auto pairing after a successful short-code pairing.
 - Single-finger pointer movement.
 - Single-finger tap for left click.
 - Tap, quick second press, and movement for drag.
 - Two-finger tap for right click.
-- Two-finger scroll without client-generated inertial momentum.
+- Two-finger scroll with macOS-generated inertial momentum configured from the macOS host app.
+- Touching the iOS surface again immediately interrupts host-generated inertial scrolling.
 - Three-finger swipe up/down/left/right for Mission Control, App Expose, and Spaces navigation, gated by the host Mac's current three-finger trackpad settings.
 - Client-side latency, touch sample rate, and sent event rate display.
 - Active connection path display for Wi-Fi, cellular, wired/cable-like, and constrained paths.
 - Initial wired-only TCP connection attempt before default TCP fallback when the system exposes a cable-like path.
-- Live tuning sliders for pointer speed and gesture timing.
+- Live tuning sliders in the macOS host app for pointer speed, scroll momentum amount/decay/tail window, and gesture timing. Scroll momentum tuning supports a wide range for matching native trackpad inertial distance.
 - iOS sends high-frequency input as compact HID-like 32-byte binary reports.
+- iOS and macOS sync tuning settings through a low-frequency configuration control channel.
 - Pending pointer and compatible scroll changed reports are coalesced while a previous send is still in flight.
 - macOS host input injection for movement, click, drag, scroll phase, momentum phase, and double-click click state.
 - macOS host accepts binary input reports and JSON control frames on the same session stream.
 - Persistent macOS host logs at `~/Library/Logs/Trackpad/host.log`.
 - Host-triggered iOS/iPadOS diagnostic log uploads to `~/Library/Logs/Trackpad/client-logs/`.
+- Authorized macOS client records are stored at `~/Library/Application Support/Trackpad/authorized_clients.jsonl`; iOS stores trusted host keys in its Application Support `trusted_hosts.jsonl`.
 
 The goal is to keep improving the feel until it is as close as practical to the official Apple trackpad experience. Stage 1 still has manual verification items in `TODOS.md`, especially real-device gesture tuning and safe click/scroll checks.
 
@@ -186,7 +190,7 @@ Near-term work:
 - Finish real-device gesture tuning against Apple trackpad behavior.
 - Continue tuning report coalescing, sample rate, and pointer/scroll feel on real devices.
 - Validate cable-like network paths on real USB-connected devices and prepare transport migration.
-- Persist trusted devices and improve pairing UX.
+- Improve trusted-device management and pairing UX.
 - Add encrypted sessions.
 
 Longer-term work:

@@ -67,6 +67,16 @@ public enum InputReportBinaryCodec {
             data.append(0)
             data.append(0)
             data.append(0)
+        case .contact(let phase, let contactCount):
+            data.append(6)
+            data.append(0)
+            appendCommonFields(report, to: &data)
+            appendFixedPoint(0, to: &data)
+            appendFixedPoint(0, to: &data)
+            data.append(clampedUInt8(contactCount))
+            data.append(phase.reportRawValue)
+            data.append(0)
+            data.append(0)
         }
 
         return data
@@ -131,6 +141,15 @@ public enum InputReportBinaryCodec {
                 timestampNanos: timestampNanos,
                 kind: .systemAction(action: try SystemAction(reportRawValue: buttonRaw))
             )
+        case 6:
+            return InputReport(
+                sequenceNumber: sequenceNumber,
+                timestampNanos: timestampNanos,
+                kind: .contact(
+                    phase: try ContactPhase(reportRawValue: phaseRaw),
+                    contactCount: Int(buttonRaw)
+                )
+            )
         default:
             throw InputReportBinaryCodecError.unsupportedKind(data[2])
         }
@@ -145,6 +164,10 @@ public enum InputReportBinaryCodec {
         let scaled = (value * fixedPointScale).rounded()
         let clamped = min(max(scaled, Double(Int32.min)), Double(Int32.max))
         append(Int32(clamped), to: &data)
+    }
+
+    private static func clampedUInt8(_ value: Int) -> UInt8 {
+        UInt8(min(max(value, 0), Int(UInt8.max)))
     }
 
     private static func readFixedPoint(from data: Data, at index: Int) -> Double {
@@ -184,6 +207,7 @@ public enum InputReportBinaryCodecError: Error, Equatable {
     case unsupportedButtonPhase(UInt8)
     case unsupportedScrollPhase(UInt8)
     case unsupportedSystemAction(UInt8)
+    case unsupportedContactPhase(UInt8)
 }
 
 private extension PointerButton {
@@ -268,6 +292,21 @@ private extension SystemAction {
         case 3: self = .previousSpace
         case 4: self = .nextSpace
         default: throw InputReportBinaryCodecError.unsupportedSystemAction(reportRawValue)
+        }
+    }
+}
+
+private extension ContactPhase {
+    var reportRawValue: UInt8 {
+        switch self {
+        case .began: return 1
+        }
+    }
+
+    init(reportRawValue: UInt8) throws {
+        switch reportRawValue {
+        case 1: self = .began
+        default: throw InputReportBinaryCodecError.unsupportedContactPhase(reportRawValue)
         }
     }
 }

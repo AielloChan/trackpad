@@ -9,6 +9,8 @@ public final class TrackpadHostClient: @unchecked Sendable {
     public var pathUpdateHandler: (@Sendable (NetworkPathSnapshot) -> Void)?
     public var connectionAttemptHandler: (@Sendable (TrackpadConnectionAttemptDiagnostic) -> Void)?
     public var inputReportDiagnosticHandler: (@Sendable (String) -> Void)?
+    public var configurationSyncHandler: (@Sendable (ConfigurationSyncSnapshot) -> Void)?
+    public var trustedClientKeyHandler: (@Sendable (TrustedClientKey) -> Void)?
     public var logUploadProvider: (@Sendable (HostLogRequest) -> ClientLogUpload?)?
     public var connectionAttemptPlan = TrackpadConnectionAttemptPlan()
 
@@ -96,6 +98,14 @@ public final class TrackpadHostClient: @unchecked Sendable {
 
     public func send(_ event: InputEvent) async throws {
         try await send(TrackpadSessionMessageBuilder.inputData(for: event))
+    }
+
+    public func sendScrollMomentumSettings(_ settings: ScrollMomentumSettings) async throws {
+        try await send(TrackpadSessionMessageBuilder.scrollMomentumSettingsData(for: settings))
+    }
+
+    public func sendConfigurationSync(_ snapshot: ConfigurationSyncSnapshot) async throws {
+        try await send(TrackpadSessionMessageBuilder.configurationSyncData(for: snapshot))
     }
 
     public func enqueue(_ events: [InputEvent]) throws {
@@ -283,7 +293,11 @@ public final class TrackpadHostClient: @unchecked Sendable {
             finishAllLatencyProbes(result: .failure(TrackpadHostClientError.cancelled))
         case .hostLogRequest(let request):
             sendClientLogUpload(for: request)
-        case .clientHello, .input, .ping, .clientLogUpload:
+        case .configurationSync(let snapshot):
+            configurationSyncHandler?(snapshot)
+        case .trustedClientKey(let key):
+            trustedClientKeyHandler?(key)
+        case .clientHello, .input, .ping, .clientLogUpload, .scrollMomentumSettings:
             break
         }
     }
@@ -383,6 +397,8 @@ private extension Array where Element == InputReport {
                 return "seq=\(report.sequenceNumber):scroll(dx=\(String(format: "%.3f", dx)),dy=\(String(format: "%.3f", dy)),phase=\(phase.rawValue),momentum=\(momentumPhase?.rawValue ?? "none"))"
             case .systemAction(let action):
                 return "seq=\(report.sequenceNumber):systemAction(\(action.rawValue))"
+            case .contact(let phase, let contactCount):
+                return "seq=\(report.sequenceNumber):contact(\(phase.rawValue),\(contactCount))"
             }
         }
         .joined(separator: "|")
@@ -572,7 +588,7 @@ private extension InputReport {
             return true
         case .scroll(_, _, let phase, _):
             return phase == .changed
-        case .pointerButton, .tap, .systemAction:
+        case .pointerButton, .tap, .systemAction, .contact:
             return false
         }
     }

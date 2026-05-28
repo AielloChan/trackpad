@@ -84,3 +84,16 @@ import Testing
 
     #expect(decoded == event)
 }
+
+@Test func contactEventRoundTripsThroughJSON() throws {
+    let event = InputEvent(
+        sequenceNumber: 47,
+        timestampNanos: 1_000_005,
+        kind: .contact(ContactEvent(phase: .began, contactCount: 1))
+    )
+
+    let data = try JSONEncoder().encode(event)
+    let decoded = try JSONDecoder().decode(InputEvent.self, from: data)
+
+    #expect(decoded == event)
+}

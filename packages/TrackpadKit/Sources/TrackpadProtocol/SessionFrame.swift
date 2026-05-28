@@ -6,6 +6,9 @@ public enum SessionFrame: Codable, Equatable, Sendable {
     case rejected(SessionRejected)
     case hostLogRequest(HostLogRequest)
     case clientLogUpload(ClientLogUpload)
+    case scrollMomentumSettings(ScrollMomentumSettings)
+    case configurationSync(ConfigurationSyncSnapshot)
+    case trustedClientKey(TrustedClientKey)
 }
 
 public struct ClientHello: Codable, Equatable, Sendable {
@@ -13,17 +16,36 @@ public struct ClientHello: Codable, Equatable, Sendable {
     public let deviceId: String
     public let deviceName: String
     public let pairingCode: String
+    public let trustedClientKey: String?
 
     public init(
         protocolVersion: Int,
         deviceId: String,
         deviceName: String,
-        pairingCode: String
+        pairingCode: String,
+        trustedClientKey: String? = nil
     ) {
         self.protocolVersion = protocolVersion
         self.deviceId = deviceId
         self.deviceName = deviceName
         self.pairingCode = pairingCode
+        self.trustedClientKey = trustedClientKey
+    }
+}
+
+public struct TrustedClientKey: Codable, Equatable, Sendable {
+    public let deviceId: String
+    public let clientKey: String
+    public let issuedAtNanos: UInt64
+
+    public init(
+        deviceId: String,
+        clientKey: String,
+        issuedAtNanos: UInt64
+    ) {
+        self.deviceId = deviceId
+        self.clientKey = clientKey
+        self.issuedAtNanos = issuedAtNanos
     }
 }
 
@@ -91,5 +113,21 @@ public struct ClientLogUpload: Codable, Equatable, Sendable {
         self.createdAtNanos = createdAtNanos
         self.content = content
         self.truncated = truncated
+    }
+}
+
+public struct ScrollMomentumSettings: Codable, Equatable, Sendable {
+    public let amount: Double
+    public let decayRate: Double
+    public let tailWindowMilliseconds: Double
+
+    public init(
+        amount: Double,
+        decayRate: Double,
+        tailWindowMilliseconds: Double
+    ) {
+        self.amount = amount
+        self.decayRate = decayRate
+        self.tailWindowMilliseconds = tailWindowMilliseconds
     }
 }

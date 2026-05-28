@@ -21,17 +21,24 @@ final class TrackpadClientModel: ObservableObject {
     @Published private(set) var touchSampleRateHz: Int?
     @Published private(set) var sentEventRateHz: Int?
     @Published private(set) var connectionPathLabel = "Path --"
-    @Published var pointerSpeedMultiplier = 2.1
-    @Published var tapMaximumDurationMilliseconds = 250.0
-    @Published var tapDragMaximumIntervalMilliseconds = 140.0
-    @Published var scrollReleaseTapSuppressionMilliseconds = 80.0
+    @Published private(set) var pointerSpeedMultiplier = TrackpadConfiguration.defaults.pointer.speedMultiplier
+    @Published private(set) var tapMaximumDurationMilliseconds = TrackpadConfiguration.defaults.gestures.tapMaximumDurationMilliseconds
+    @Published private(set) var tapDragMaximumIntervalMilliseconds = TrackpadConfiguration.defaults.gestures.tapDragMaximumIntervalMilliseconds
+    @Published private(set) var scrollReleaseTapSuppressionMilliseconds = TrackpadConfiguration.defaults.gestures.scrollReleaseTapSuppressionMilliseconds
+    @Published private(set) var scrollMomentumAmount = TrackpadConfiguration.defaults.scrollMomentum.amount
+    @Published private(set) var scrollMomentumDecayRate = TrackpadConfiguration.defaults.scrollMomentum.decayRate
+    @Published private(set) var scrollMomentumTailWindowMilliseconds = TrackpadConfiguration.defaults.scrollMomentum.tailWindowMilliseconds
 
     private let client = TrackpadHostClient()
     private let diagnosticLogStore = ClientDiagnosticLogStore()
+    private let trustedHostStore = TrustedHostStore()
     private let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? "ios-device"
     private let deviceName = UIDevice.current.name
     private var mapper = TouchSurfaceEventMapper()
+    private var configurationSyncState = ConfigurationSyncState(configuration: .defaults)
+    private var activeConnectionConfiguration: TrackpadConnectionConfiguration?
     private var selectedDiscoveredHost: DiscoveredTrackpadHost?
+    private var pendingTrustedHostAliases: [String] = []
     private var isDiscoveryRunning = false
     private var didRunDebugAutomation = false
     private var latencyTask: Task<Void, Never>?
@@ -63,6 +70,16 @@ final class TrackpadClientModel: ObservableObject {
         client.inputReportDiagnosticHandler = { [weak self] message in
             Task { @MainActor [weak self] in
                 self?.recordDiagnosticLog("ios.report \(message)")
+            }
+        }
+        client.configurationSyncHandler = { [weak self] snapshot in
+            Task { @MainActor [weak self] in
+                self?.applyRemoteConfiguration(snapshot)
+            }
+        }
+        client.trustedClientKeyHandler = { [weak self] key in
+            Task { @MainActor [weak self] in
+                self?.saveTrustedClientKey(key)
             }
         }
         client.logUploadProvider = { [diagnosticLogStore, deviceId, deviceName] request in
@@ -113,29 +130,34 @@ final class TrackpadClientModel: ObservableObject {
         let configuration: TrackpadConnectionConfiguration
 
         if let selectedDiscoveredHost, host == selectedDiscoveredHost.name, port == "Bonjour" {
-            configuration = TrackpadConnectionConfiguration(
+            let baseConfiguration = TrackpadConnectionConfiguration(
                 address: selectedDiscoveredHost.address,
                 pairingCode: pairingCode,
                 deviceId: deviceId,
                 deviceName: deviceName
             )
+            configuration = configurationWithTrustedKey(baseConfiguration)
         } else {
             guard let portValue = UInt16(port) else {
                 connectionState = .failed("Invalid port")
                 return
             }
 
-            configuration = TrackpadConnectionConfiguration(
+            let baseConfiguration = TrackpadConnectionConfiguration(
                 host: host,
                 port: portValue,
                 pairingCode: pairingCode,
                 deviceId: deviceId,
-                deviceName: deviceName
+                deviceName: deviceName,
+                trustedHostAliases: pendingTrustedHostAliases
             )
+            configuration = configurationWithTrustedKey(baseConfiguration)
         }
+        pendingTrustedHostAliases = []
 
         Task {
             do {
+                activeConnectionConfiguration = configuration
                 try await client.connect(configuration: configuration)
                 connectionState = .connected
                 startLatencyUpdates()
@@ -143,6 +165,7 @@ final class TrackpadClientModel: ObservableObject {
                     try await sendDebugSampleMove()
                 }
             } catch {
+                activeConnectionConfiguration = nil
                 stopLatencyUpdates()
                 connectionState = .failed(String(describing: error))
             }
@@ -162,6 +185,7 @@ final class TrackpadClientModel: ObservableObject {
             host = payload.host
             port = String(payload.port)
             pairingCode = payload.pairingCode
+            pendingTrustedHostAliases = ["bonjour:\(payload.serviceName)"]
             connect()
         } catch {
             connectionState = .failed("Invalid pairing QR code")
@@ -171,6 +195,7 @@ final class TrackpadClientModel: ObservableObject {
     func disconnect() {
         stopLatencyUpdates()
         client.disconnect()
+        activeConnectionConfiguration = nil
         mapper.end()
         connectionPathLabel = "Path --"
         connectionState = .disconnected
@@ -187,6 +212,9 @@ final class TrackpadClientModel: ObservableObject {
         }
         if contacts.count == 3 {
             logSystemGestureDiagnostic("begin contacts=\(contacts.scrollDiagnosticSummary)")
+        }
+        if let contactEvent = mapper.contactBegan(with: contacts) {
+            send([contactEvent])
         }
         send(mapper.begin(with: contacts))
     }
@@ -219,6 +247,68 @@ final class TrackpadClientModel: ObservableObject {
         }
         logScrollEvents("end contacts=\(contacts.scrollDiagnosticSummary)", events: events)
         send(events)
+    }
+
+    private func applyRemoteConfiguration(_ snapshot: ConfigurationSyncSnapshot) {
+        guard configurationSyncState.applyRemote(snapshot) == .applied else {
+            return
+        }
+
+        applyConfigurationToControls(snapshot.configuration)
+        recordDiagnosticLog("ios.configApplied source=\(snapshot.sourceDeviceId) revision=\(snapshot.revision)")
+    }
+
+    private func configurationWithTrustedKey(_ configuration: TrackpadConnectionConfiguration) -> TrackpadConnectionConfiguration {
+        let trustedClientKey: String?
+        do {
+            trustedClientKey = try trustedHostStore.clientKey(
+                for: configuration,
+                timestampNanos: DispatchTime.now().uptimeNanoseconds
+            )
+        } catch {
+            trustedClientKey = nil
+            recordDiagnosticLog("ios.trust loadFailed host=\(configuration.trustedHostIdentity) error=\(String(describing: error))")
+        }
+        recordDiagnosticLog("ios.trust lookup host=\(configuration.trustedHostIdentity) found=\(trustedClientKey != nil) aliases=\(configuration.trustedHostAliases.joined(separator: ","))")
+
+        switch configuration.address {
+        case .manual:
+            return TrackpadConnectionConfiguration(
+                host: configuration.host,
+                port: configuration.port,
+                pairingCode: configuration.pairingCode,
+                deviceId: configuration.deviceId,
+                deviceName: configuration.deviceName,
+                trustedClientKey: trustedClientKey,
+                trustedHostAliases: configuration.trustedHostAliases
+            )
+        case .bonjour:
+            return TrackpadConnectionConfiguration(
+                address: configuration.address,
+                pairingCode: configuration.pairingCode,
+                deviceId: configuration.deviceId,
+                deviceName: configuration.deviceName,
+                trustedClientKey: trustedClientKey,
+                trustedHostAliases: configuration.trustedHostAliases
+            )
+        }
+    }
+
+    private func saveTrustedClientKey(_ key: TrustedClientKey) {
+        guard let activeConnectionConfiguration else {
+            return
+        }
+
+        do {
+            try trustedHostStore.save(
+                key,
+                for: activeConnectionConfiguration,
+                timestampNanos: DispatchTime.now().uptimeNanoseconds
+            )
+            recordDiagnosticLog("ios.trust saved host=\(activeConnectionConfiguration.trustedHostIdentity) deviceId=\(key.deviceId)")
+        } catch {
+            recordDiagnosticLog("ios.trust saveFailed host=\(activeConnectionConfiguration.trustedHostIdentity) error=\(String(describing: error))")
+        }
     }
 
 #if DEBUG
@@ -295,6 +385,17 @@ final class TrackpadClientModel: ObservableObject {
             tapDragMaximumIntervalMilliseconds: tapDragMaximumIntervalMilliseconds,
             scrollReleaseTapSuppressionMilliseconds: scrollReleaseTapSuppressionMilliseconds
         )
+    }
+
+    private func applyConfigurationToControls(_ configuration: TrackpadConfiguration) {
+        pointerSpeedMultiplier = configuration.pointer.speedMultiplier
+        tapMaximumDurationMilliseconds = configuration.gestures.tapMaximumDurationMilliseconds
+        tapDragMaximumIntervalMilliseconds = configuration.gestures.tapDragMaximumIntervalMilliseconds
+        scrollReleaseTapSuppressionMilliseconds = configuration.gestures.scrollReleaseTapSuppressionMilliseconds
+        scrollMomentumAmount = configuration.scrollMomentum.amount
+        scrollMomentumDecayRate = configuration.scrollMomentum.decayRate
+        scrollMomentumTailWindowMilliseconds = configuration.scrollMomentum.tailWindowMilliseconds
+        applyGestureConfiguration()
     }
 
     private func send(_ events: [InputEvent]) {
@@ -400,9 +501,6 @@ final class TrackpadClientModel: ObservableObject {
         recordDiagnosticLog("ios.systemGesture \(message)")
     }
 
-    private func formatScroll(_ value: Double) -> String {
-        String(format: "%.3f", value)
-    }
 }
 
 private extension Array where Element == TouchContact {
@@ -456,6 +554,8 @@ private extension Array where Element == InputEvent {
                 return "seq=\(event.sequenceNumber):scroll(dx=\(String(format: "%.3f", scroll.dx)),dy=\(String(format: "%.3f", scroll.dy)),phase=\(scroll.phase.rawValue),momentum=\(scroll.momentumPhase?.rawValue ?? "none"))"
             case .systemAction(let systemAction):
                 return "seq=\(event.sequenceNumber):systemAction(\(systemAction.action.rawValue))"
+            case .contact(let contact):
+                return "seq=\(event.sequenceNumber):contact(\(contact.phase.rawValue),\(contact.contactCount))"
             }
         }
         .joined(separator: "|")

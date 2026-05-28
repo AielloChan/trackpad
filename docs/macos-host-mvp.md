@@ -11,6 +11,7 @@ The macOS host MVP receives platform-neutral input events and maps them to local
 - Maps consecutive tap events to CoreGraphics mouse click state for native double-click behavior.
 - Receives newline-delimited JSON `SessionFrame` frames over TCP.
 - Requires a valid pairing hello before processing input frames.
+- Stores trusted clients in `~/Library/Application Support/Trackpad/authorized_clients.jsonl` so known clients can reconnect with a trusted key after first short-code pairing.
 - Advertises the TCP server with Bonjour.
 - Exposes server status in the native macOS app.
 - Displays a QR pairing payload for iOS clients.
@@ -36,8 +37,10 @@ The first MVP uses newline-delimited JSON. Each session frame is one JSON object
 Every client must send `clientHello` before sending input:
 
 ```json
-{"clientHello":{"protocolVersion":1,"deviceId":"trackpad-cli","deviceName":"Trackpad CLI","pairingCode":"123456"}}
+{"clientHello":{"protocolVersion":1,"deviceId":"trackpad-cli","deviceName":"Trackpad CLI","pairingCode":"123456","trustedClientKey":"optional-client-key"}}
 ```
+
+If `trustedClientKey` matches the hash stored for that `deviceId`, the host authorizes the connection without requiring the current pairing code. Otherwise the normal short pairing code is required. A successful short-code pairing issues a new trusted client key to the client.
 
 Input is then sent as an `input` session frame:
 

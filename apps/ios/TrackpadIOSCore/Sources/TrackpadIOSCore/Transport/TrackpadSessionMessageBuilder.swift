@@ -11,7 +11,8 @@ public enum TrackpadSessionMessageBuilder {
                     protocolVersion: 1,
                     deviceId: configuration.deviceId,
                     deviceName: configuration.deviceName,
-                    pairingCode: configuration.pairingCode
+                    pairingCode: configuration.pairingCode,
+                    trustedClientKey: configuration.trustedClientKey
                 )
             )
         )
@@ -27,5 +28,13 @@ public enum TrackpadSessionMessageBuilder {
 
     public static func clientLogUploadData(for upload: ClientLogUpload) throws -> Data {
         try SessionFrameLineCodec.encode(.clientLogUpload(upload))
+    }
+
+    public static func scrollMomentumSettingsData(for settings: ScrollMomentumSettings) throws -> Data {
+        try SessionFrameLineCodec.encode(.scrollMomentumSettings(settings))
+    }
+
+    public static func configurationSyncData(for snapshot: ConfigurationSyncSnapshot) throws -> Data {
+        try SessionFrameLineCodec.encode(.configurationSync(snapshot))
     }
 }

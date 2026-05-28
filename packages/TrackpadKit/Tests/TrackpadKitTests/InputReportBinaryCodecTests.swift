@@ -42,6 +42,18 @@ import Testing
     #expect(decoded.inputEvent == event)
 }
 
+@Test func contactReportPreservesPhaseAndContactCount() throws {
+    let event = InputEvent(
+        sequenceNumber: 11,
+        timestampNanos: 1_400,
+        kind: .contact(ContactEvent(phase: .began, contactCount: 2))
+    )
+
+    let decoded = try InputReportBinaryCodec.decode(InputReportBinaryCodec.encode(try InputReport(event: event)))
+
+    #expect(decoded.inputEvent == event)
+}
+
 @Test func mixedSessionStreamDecodesJsonControlFramesAndBinaryInputReports() throws {
     let hello = SessionFrame.clientHello(
         ClientHello(

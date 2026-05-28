@@ -8,15 +8,15 @@ The iOS client MVP is a native SwiftUI/UIKit app that sends single-finger moveme
 2. Open the iOS app.
 3. Tap `Scan QR` and scan the macOS host QR code, or select a discovered Bonjour host / enter IP details manually.
 4. If using manual entry, enter the pairing code and tap Connect.
-5. After connection succeeds, the app shows a black touch surface.
-6. Single-finger movement sends `InputEvent.pointerMove` frames to macOS.
-7. Single-finger tap, tap-then-quick-second-press drag, two-finger tap, and two-finger movement map to click, drag, right click, and scroll events.
-8. Two-finger scroll release sends a scroll end and then a short decaying momentum sequence.
-9. The connected bar shows client-to-host round-trip latency and refreshes it once per second.
-10. The connected bar also shows touch-move sample Hz and sent input-event Hz as `touch/send Hz`.
-11. The connected bar shows the active connection path reported by `Network.framework`.
-12. The connected bar exposes pointer speed and scroll momentum amount sliders while connected.
-13. The connected bar exposes tap duration, drag interval, and scroll guard timing sliders while connected.
+5. After connection succeeds, the app stores the trusted client key issued by the host for future reconnects.
+6. Known hosts can reconnect with the stored key without requiring the current pairing code.
+7. Single-finger movement sends `InputEvent.pointerMove` frames to macOS.
+8. Single-finger tap, tap-then-quick-second-press drag, two-finger tap, and two-finger movement map to click, drag, right click, and scroll events.
+9. Two-finger scroll release sends a clean scroll end; the macOS host synthesizes local inertial momentum.
+10. The connected bar shows client-to-host round-trip latency and refreshes it once per second.
+11. The connected bar also shows touch-move sample Hz and sent input-event Hz as `touch/send Hz`.
+12. The connected bar shows the active connection path reported by `Network.framework`.
+13. The connected bar stays narrow and status-only while connected; tuning controls live in the macOS host app.
 
 ## Transport
 
@@ -69,6 +69,7 @@ Frames are encoded with the shared `SessionFrameLineCodec` from `TrackpadKit`.
 - Manual IP entry remains intentional as a fallback.
 - QR pairing uses AVFoundation to scan `trackpad://pair?...` payloads and then fills host, port, and pairing code before connecting.
 - `NSCameraUsageDescription` is configured for QR pairing scans.
+- After a successful short-code pairing, the host sends a `trustedClientKey` frame. The iOS client stores it in Application Support `trusted_hosts.jsonl` and sends it in future `clientHello` frames for the same host identity.
 - The connected bar polls `TrackpadHostClient.measureLatency()` every second and displays RTT in milliseconds.
 - The connected bar displays touch sampling and sent-event rates so stutter can be correlated with capture or transport behavior.
 - The connected bar displays the active `NWConnection` path as `Path Wi-Fi`, `Path Wired`, `Path Cellular Expensive`, or an unavailable state.
@@ -79,14 +80,16 @@ Frames are encoded with the shared `SessionFrameLineCodec` from `TrackpadKit`.
 - `TouchSurfaceEventMapper` ends an active two-finger gesture as soon as contact count drops below two so UIKit's staggered `touchesEnded` callbacks do not accidentally create a one-finger tap.
 - After a two-finger scroll ends, `TouchSurfaceEventMapper` suppresses single-finger tap recognition for 80 ms to absorb staggered release callbacks without disabling normal pointer movement.
 - `TouchGestureConfiguration` owns gesture timing thresholds. Defaults are tap duration `250 ms`, tap-then-second-press drag interval `140 ms`, and scroll-release tap guard `80 ms`.
-- The connected bar allows live tuning for tap duration (`60...500 ms`), drag interval (`40...250 ms`), and scroll guard (`0...250 ms`).
+- The connected bar is status-only after connection. It intentionally does not expose tuning sliders because the macOS host app owns the visible tuning controls.
 - Tap-drag candidate detection no longer suppresses small pointer movement. The cursor moves immediately, and only crossing the drag threshold adds a left-button down event.
-- The iOS app tracks recent two-finger scroll velocity, schedules first-pass momentum from that velocity, and cancels it when a new touch begins or the connection ends.
-- Scroll momentum uses a reusable seed tracker that preserves the gesture's dominant axis, so final cross-axis jitter before release does not erase vertical or horizontal inertial scrolling.
-- Momentum scroll events carry `momentumPhase` through the shared protocol so the host can distinguish inertial scroll from finger-driven scroll.
-- `InputEventTuning` scales pointer movement on the iOS client before transport. The default pointer multiplier is `2.1x`, and the connected-bar range is `0.2x...3.0x`.
-- Scroll momentum now uses slower decay by default. The default momentum amount is `1.8x`, and the connected-bar range is `0.2x...3.0x`.
-- The macOS scroll injector marks scroll events as continuous and sets CoreGraphics scroll phase and momentum phase fields.
+- The iOS app sends only finger-driven two-finger scroll input. The macOS host tracks recent scroll samples and synthesizes inertial momentum locally after `scroll.ended`.
+- The iOS app sends a reliable `contact.began` boundary event on `touchesBegan`; the macOS host uses it to interrupt scheduled inertial scrolling as soon as a finger touches the surface again.
+- Scroll momentum uses a host-side seed tracker that preserves the gesture's dominant axis, so final cross-axis jitter before release does not erase vertical or horizontal inertial scrolling.
+- The iOS app receives low-frequency `configurationSync` frames for pointer, gesture, and scroll momentum tuning.
+- `InputEventTuning` scales pointer movement on the iOS client before transport. The default pointer multiplier is `2.1x`; the visible tuning control lives in the macOS host app.
+- Scroll momentum is synthesized on macOS with tunable amount, decay rate, and tail velocity window. Defaults are amount `5.0x`, decay `0.95`, and tail window `140 ms`; tuning ranges are amount `0...12x`, decay `0.72...0.995`, and tail window `30...500 ms`. The host normalizes momentum by frame interval so 120 Hz displays get more, smaller updates while preserving similar total distance.
+- The macOS host edits the tuning settings; configuration sync applies changed snapshots on both endpoints without echoing identical values back.
+- The macOS scroll injector marks scroll events as continuous, sets CoreGraphics scroll phase and momentum phase fields, and preserves subpixel residuals for integer wheel deltas.
 - The macOS input mapper tracks pressed buttons and emits dragged mouse commands while the left button is held down, so host injection uses `leftMouseDragged` instead of `mouseMoved` during window drag.
 - The macOS input mapper tracks consecutive tap events with the system double-click interval and injects CoreGraphics mouse events with the matching click state, so two quick iOS taps can trigger native macOS double-click selection.
 - `NSLocalNetworkUsageDescription` and `NSBonjourServices` are configured for local TCP access and browsing.
@@ -97,10 +100,10 @@ Frames are encoded with the shared `SessionFrameLineCodec` from `TrackpadKit`.
 - Pinch zoom, three-finger gestures, and four-finger system gestures are not implemented yet.
 - One-finger hold-and-move is pointer movement, not drag.
 - Drag currently starts when a single-finger tap is followed quickly by a second press and movement past the drag threshold; real-device timing tuning is still needed.
-- Gesture timing sliders are in-memory only and reset on app restart.
-- Scroll momentum is a synthetic decay sequence from the iOS client with a user-tunable amount. It is not yet tuned to match Magic Trackpad physics.
+- Gesture timing settings are currently in-memory only and reset on app restart.
+- Scroll momentum is a synthetic decay sequence from the macOS host with user-tunable amount, decay, and tail-window settings. It now supports longer inertial tails, but still needs real-device comparison against Magic Trackpad physics.
 - Scroll phase and momentum fields are now injected on macOS, but native-trackpad parity still requires real-device tuning.
-- Pointer speed and momentum amount settings are in-memory only and reset on app restart.
+- Pointer speed and momentum settings are in-memory only and reset on app restart.
 - The connection panel is shown while disconnected; the connected surface is black.
 - The wire format is still JSON Lines. Binary framing is the next transport-efficiency milestone.
 - Device trust persistence and encrypted sessions are still deferred.
@@ -137,10 +140,9 @@ two-finger movement -> scroll began / changed / ended
 two-finger scroll ending with one remaining contact -> scroll ended, no left click
 single-finger tap within 80 ms after two-finger scroll release -> no left click
 single-finger tap after the 80 ms suppression window -> left click
-scroll momentum planner -> decaying changed steps plus final ended step
-velocity-based scroll momentum planner -> decaying changed steps plus final ended step
-scroll momentum seed -> preserves vertical velocity after a final horizontal jitter sample
-scroll momentum seed -> preserves horizontal velocity for intentional horizontal scroll
+host scroll momentum synthesizer -> decaying changed steps plus final ended step
+host scroll momentum synthesizer -> preserves vertical velocity after a final horizontal jitter sample
+host scroll momentum synthesizer -> preserves horizontal velocity for intentional horizontal scroll
 momentum scroll event -> scroll event with momentumPhase
 left button down + pointer move on macOS host -> dragged mouse command
 scroll with momentumPhase on macOS host -> scroll command preserving phase metadata

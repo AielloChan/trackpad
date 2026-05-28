@@ -21,6 +21,7 @@ final class QRCodeScannerViewController: UIViewController, @MainActor AVCaptureM
     private let onCancel: () -> Void
     private let session = AVCaptureSession()
     private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var didScanCode = false
 
     init(onCodeScanned: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
@@ -43,7 +44,21 @@ final class QRCodeScannerViewController: UIViewController, @MainActor AVCaptureM
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        previewLayer?.frame = view.bounds
+        updatePreviewLayerGeometry()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        updatePreviewLayerGeometry()
+    }
+
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        coordinator.animate { [weak self] _ in
+            self?.updatePreviewLayerGeometry()
+        } completion: { [weak self] _ in
+            self?.updatePreviewLayerGeometry()
+        }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -125,11 +140,49 @@ final class QRCodeScannerViewController: UIViewController, @MainActor AVCaptureM
 
         let previewLayer = AVCaptureVideoPreviewLayer(session: session)
         previewLayer.videoGravity = .resizeAspectFill
-        previewLayer.frame = view.bounds
         view.layer.insertSublayer(previewLayer, at: 0)
         self.previewLayer = previewLayer
+        rotationCoordinator = AVCaptureDevice.RotationCoordinator(
+            device: device,
+            previewLayer: previewLayer
+        )
+        updatePreviewLayerGeometry()
 
         session.startRunning()
+    }
+
+    private func updatePreviewLayerGeometry() {
+        guard let previewLayer else {
+            return
+        }
+
+        previewLayer.frame = view.bounds
+        guard let connection = previewLayer.connection else {
+            return
+        }
+
+        let rotationAngle = rotationCoordinator?.videoRotationAngleForHorizonLevelPreview
+            ?? fallbackVideoRotationAngle
+        guard connection.isVideoRotationAngleSupported(rotationAngle) else {
+            return
+        }
+
+        connection.videoRotationAngle = rotationAngle
+    }
+
+    private var fallbackVideoRotationAngle: CGFloat {
+        switch view.window?.windowScene?.interfaceOrientation {
+        case .landscapeLeft:
+            return 0
+        case .portrait:
+            return 90
+        case .landscapeRight:
+            return 180
+        case .portraitUpsideDown:
+            return 270
+        default:
+            return 90
+        }
     }
 
     private func showMessage(_ message: String) {

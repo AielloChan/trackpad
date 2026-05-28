@@ -71,6 +71,29 @@ import TrackpadKit
     ])
 }
 
+@Test func sendBufferKeepsContactReportsUnderBackpressure() {
+    var buffer = InputReportSendBuffer(maxPendingReportAgeNanos: 10)
+    let contact = InputReport(
+        sequenceNumber: 3,
+        timestampNanos: 105,
+        kind: .contact(phase: .began, contactCount: 1)
+    )
+
+    #expect(buffer.enqueue([inputReport(sequence: 1, dx: 1, dy: 0)]) == [
+        inputReport(sequence: 1, dx: 1, dy: 0),
+    ])
+    #expect(buffer.enqueue([
+        inputReport(sequence: 2, dx: 2, dy: 0),
+        contact,
+        inputReport(sequence: 4, timestamp: 120, dx: 4, dy: 0),
+    ]) == nil)
+
+    #expect(buffer.completeCurrentSend(currentTimestampNanos: 120) == [
+        contact,
+        inputReport(sequence: 4, timestamp: 120, dx: 4, dy: 0),
+    ])
+}
+
 @Test func sendBufferDropsOldestRealtimeReportsWhenPendingBacklogExceedsLimit() {
     var buffer = InputReportSendBuffer(maxPendingReportAgeNanos: 1_000, maxPendingReportCount: 2)
     let button = InputReport(

@@ -49,6 +49,8 @@ public struct MacInputMapper: Sendable {
                 return []
             }
             return [.systemAction(systemAction.action)]
+        case .contact:
+            return []
         }
     }
 

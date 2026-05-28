@@ -98,6 +98,17 @@ public struct TouchSurfaceEventMapper {
         begin(with: [TouchContact(id: 0, point: point)]).first
     }
 
+    public mutating func contactBegan(with contacts: [TouchContact]) -> InputEvent? {
+        guard !contacts.isEmpty else {
+            return nil
+        }
+
+        return makeEvent(
+            timestampNanos: timestampProvider(),
+            kind: .contact(ContactEvent(phase: .began, contactCount: contacts.count))
+        )
+    }
+
     public mutating func begin(with contacts: [TouchContact]) -> [InputEvent] {
         if var state = gestureState,
            state.kind == .threeFingerSwipe,

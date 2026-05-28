@@ -9,7 +9,8 @@ import TrackpadKit
         port: 44787,
         pairingCode: "123456",
         deviceId: "ios-1",
-        deviceName: "iPhone"
+        deviceName: "iPhone",
+        trustedClientKey: "known-client-key"
     )
 
     let data = try TrackpadSessionMessageBuilder.clientHelloData(for: configuration)
@@ -21,7 +22,8 @@ import TrackpadKit
                 protocolVersion: 1,
                 deviceId: "ios-1",
                 deviceName: "iPhone",
-                pairingCode: "123456"
+                pairingCode: "123456",
+                trustedClientKey: "known-client-key"
             )
         ),
     ])
@@ -65,4 +67,31 @@ import TrackpadKit
     var codec = SessionFrameLineCodec()
 
     #expect(try codec.append(data) == [.clientLogUpload(upload)])
+}
+
+@Test func sessionMessageBuilderCreatesScrollMomentumSettingsFrame() throws {
+    let settings = ScrollMomentumSettings(
+        amount: 1.2,
+        decayRate: 0.88,
+        tailWindowMilliseconds: 120
+    )
+
+    let data = try TrackpadSessionMessageBuilder.scrollMomentumSettingsData(for: settings)
+    var codec = SessionFrameLineCodec()
+
+    #expect(try codec.append(data) == [.scrollMomentumSettings(settings)])
+}
+
+@Test func sessionMessageBuilderCreatesConfigurationSyncFrame() throws {
+    let snapshot = ConfigurationSyncSnapshot(
+        revision: 1,
+        updatedAtNanos: 100,
+        sourceDeviceId: "ios-1",
+        configuration: .defaults.withPointerSpeedMultiplier(2.4)
+    )
+
+    let data = try TrackpadSessionMessageBuilder.configurationSyncData(for: snapshot)
+    var codec = SessionFrameLineCodec()
+
+    #expect(try codec.append(data) == [.configurationSync(snapshot)])
 }

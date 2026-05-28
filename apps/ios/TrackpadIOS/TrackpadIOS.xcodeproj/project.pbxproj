@@ -21,6 +21,7 @@
 			210000000000000000000010 /* Touch/InputEventTuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000011 /* Touch/InputEventTuning.swift */; };
 			210000000000000000000014 /* Transport/NetworkPathSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000015 /* Transport/NetworkPathSnapshot.swift */; };
 			210000000000000000000016 /* Diagnostics/ClientDiagnosticLogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000017 /* Diagnostics/ClientDiagnosticLogStore.swift */; };
+			210000000000000000000018 /* Transport/TrustedHostStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 210000000000000000000019 /* Transport/TrustedHostStore.swift */; };
 			21000000000000000000000A /* Discovery/TrackpadHostAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21000000000000000000000B /* Discovery/TrackpadHostAddress.swift */; };
 		21000000000000000000000C /* Discovery/DiscoveredTrackpadHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21000000000000000000000D /* Discovery/DiscoveredTrackpadHost.swift */; };
 		21000000000000000000000E /* Discovery/BonjourTrackpadHostBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21000000000000000000000F /* Discovery/BonjourTrackpadHostBrowser.swift */; };
@@ -31,6 +32,7 @@
 		220000000000000000000010 /* TrackpadProtocol/InputReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 220000000000000000000011 /* TrackpadProtocol/InputReport.swift */; };
 		220000000000000000000012 /* TrackpadTransport/InputReportBinaryCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 220000000000000000000013 /* TrackpadTransport/InputReportBinaryCodec.swift */; };
 		220000000000000000000014 /* TrackpadTransport/SessionStreamCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 220000000000000000000015 /* TrackpadTransport/SessionStreamCodec.swift */; };
+		220000000000000000000016 /* TrackpadProtocol/TrackpadConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 220000000000000000000017 /* TrackpadProtocol/TrackpadConfiguration.swift */; };
 		230000000000000000000001 /* QRCodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 230000000000000000000002 /* QRCodeScannerView.swift */; };
 		300000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 300000000000000000000002 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
@@ -51,6 +53,7 @@
 			210000000000000000000011 /* Touch/InputEventTuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Touch/InputEventTuning.swift; sourceTree = "<group>"; };
 			210000000000000000000015 /* Transport/NetworkPathSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transport/NetworkPathSnapshot.swift; sourceTree = "<group>"; };
 			210000000000000000000017 /* Diagnostics/ClientDiagnosticLogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics/ClientDiagnosticLogStore.swift; sourceTree = "<group>"; };
+			210000000000000000000019 /* Transport/TrustedHostStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transport/TrustedHostStore.swift; sourceTree = "<group>"; };
 		21000000000000000000000B /* Discovery/TrackpadHostAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Discovery/TrackpadHostAddress.swift; sourceTree = "<group>"; };
 		21000000000000000000000D /* Discovery/DiscoveredTrackpadHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Discovery/DiscoveredTrackpadHost.swift; sourceTree = "<group>"; };
 		21000000000000000000000F /* Discovery/BonjourTrackpadHostBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Discovery/BonjourTrackpadHostBrowser.swift; sourceTree = "<group>"; };
@@ -61,6 +64,7 @@
 		220000000000000000000011 /* TrackpadProtocol/InputReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackpadProtocol/InputReport.swift; sourceTree = "<group>"; };
 		220000000000000000000013 /* TrackpadTransport/InputReportBinaryCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackpadTransport/InputReportBinaryCodec.swift; sourceTree = "<group>"; };
 		220000000000000000000015 /* TrackpadTransport/SessionStreamCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackpadTransport/SessionStreamCodec.swift; sourceTree = "<group>"; };
+		220000000000000000000017 /* TrackpadProtocol/TrackpadConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackpadProtocol/TrackpadConfiguration.swift; sourceTree = "<group>"; };
 		230000000000000000000002 /* QRCodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRCodeScannerView.swift; sourceTree = "<group>"; };
 		300000000000000000000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -156,6 +160,7 @@
 				210000000000000000000006 /* Transport/TrackpadSessionMessageBuilder.swift */,
 				210000000000000000000008 /* Transport/TrackpadHostClient.swift */,
 				210000000000000000000015 /* Transport/NetworkPathSnapshot.swift */,
+				210000000000000000000019 /* Transport/TrustedHostStore.swift */,
 			);
 			path = ../../TrackpadIOSCore/Sources/TrackpadIOSCore;
 			sourceTree = "<group>";
@@ -166,6 +171,7 @@
 				220000000000000000000002 /* TrackpadProtocol/InputEvent.swift */,
 				220000000000000000000011 /* TrackpadProtocol/InputReport.swift */,
 				220000000000000000000004 /* TrackpadProtocol/SessionFrame.swift */,
+				220000000000000000000017 /* TrackpadProtocol/TrackpadConfiguration.swift */,
 				220000000000000000000013 /* TrackpadTransport/InputReportBinaryCodec.swift */,
 				220000000000000000000006 /* TrackpadTransport/SessionFrameLineCodec.swift */,
 				220000000000000000000015 /* TrackpadTransport/SessionStreamCodec.swift */,
@@ -264,8 +270,10 @@
 					210000000000000000000010 /* Touch/InputEventTuning.swift in Sources */,
 					210000000000000000000014 /* Transport/NetworkPathSnapshot.swift in Sources */,
 					210000000000000000000016 /* Diagnostics/ClientDiagnosticLogStore.swift in Sources */,
+					210000000000000000000018 /* Transport/TrustedHostStore.swift in Sources */,
 					220000000000000000000001 /* TrackpadProtocol/InputEvent.swift in Sources */,
 					220000000000000000000010 /* TrackpadProtocol/InputReport.swift in Sources */,
+					220000000000000000000016 /* TrackpadProtocol/TrackpadConfiguration.swift in Sources */,
 				220000000000000000000003 /* TrackpadProtocol/SessionFrame.swift in Sources */,
 				220000000000000000000012 /* TrackpadTransport/InputReportBinaryCodec.swift in Sources */,
 				220000000000000000000005 /* TrackpadTransport/SessionFrameLineCodec.swift in Sources */,

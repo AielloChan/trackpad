@@ -23,6 +23,7 @@ public enum InputEventKind: Codable, Equatable, Sendable {
     case tap(TapEvent)
     case scroll(ScrollEvent)
     case systemAction(SystemActionEvent)
+    case contact(ContactEvent)
 }
 
 public struct PointerMoveEvent: Codable, Equatable, Sendable {
@@ -75,6 +76,16 @@ public struct SystemActionEvent: Codable, Equatable, Sendable {
     }
 }
 
+public struct ContactEvent: Codable, Equatable, Sendable {
+    public let phase: ContactPhase
+    public let contactCount: Int
+
+    public init(phase: ContactPhase, contactCount: Int) {
+        self.phase = phase
+        self.contactCount = max(contactCount, 0)
+    }
+}
+
 public enum SystemAction: String, Codable, Equatable, Sendable {
     case missionControl
     case appExpose
@@ -97,4 +108,8 @@ public enum ScrollPhase: String, Codable, Equatable, Sendable {
     case began
     case changed
     case ended
+}
+
+public enum ContactPhase: String, Codable, Equatable, Sendable {
+    case began
 }

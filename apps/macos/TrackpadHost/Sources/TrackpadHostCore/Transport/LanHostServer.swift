@@ -4,39 +4,51 @@ import TrackpadKit
 
 public final class LanHostServer: @unchecked Sendable {
     public typealias StatusHandler = @Sendable (HostRuntimeStatus) -> Void
+    public typealias ConfigurationHandler = @Sendable (TrackpadConfiguration) -> Void
 
     private let port: UInt16
     private let serviceName: String
     private let processor: HostEventProcessor
     private let pairingPolicy: PairingPolicy
     private let statusHandler: StatusHandler
+    private let configurationHandler: ConfigurationHandler
     private let logger: any HostLogging
     private let clientLogUploadWriter: ClientLogUploadWriter
+    private let authorizedClientStore: AuthorizedClientStore
     private let inputCompactor = RealtimeInputCompactor()
     private let queue = DispatchQueue(label: "trackpad.host.lan-server", qos: .userInteractive)
+    private let hostConfigurationSourceId = "macos-host"
 
     private var listener: NWListener?
     private var connections: [UUID: NWConnection] = [:]
     private var codecs: [UUID: SessionStreamCodec] = [:]
     private var authorizedConnections: Set<UUID> = []
     private var status = HostRuntimeStatus.stopped
+    private var configurationState: ConfigurationSyncState
 
     public init(
         port: UInt16 = HostDefaults.tcpPort,
         serviceName: String = HostDefaults.bonjourName,
         pairingPolicy: PairingPolicy,
         processor: HostEventProcessor,
+        initialConfiguration: TrackpadConfiguration = .defaults,
         clientLogUploadWriter: ClientLogUploadWriter = ClientLogUploadWriter(),
+        authorizedClientStore: AuthorizedClientStore = AuthorizedClientStore(),
         logger: any HostLogging = DisabledHostLogger(),
-        statusHandler: @escaping StatusHandler = { _ in }
+        statusHandler: @escaping StatusHandler = { _ in },
+        configurationHandler: @escaping ConfigurationHandler = { _ in }
     ) {
         self.port = port
         self.serviceName = serviceName
         self.pairingPolicy = pairingPolicy
         self.processor = processor
+        self.configurationState = ConfigurationSyncState(configuration: initialConfiguration)
         self.clientLogUploadWriter = clientLogUploadWriter
+        self.authorizedClientStore = authorizedClientStore
         self.statusHandler = statusHandler
+        self.configurationHandler = configurationHandler
         self.logger = logger
+        self.processor.applyConfiguration(initialConfiguration)
     }
 
     public func start() throws {
@@ -99,6 +111,22 @@ public final class LanHostServer: @unchecked Sendable {
             for id in connectionIDs {
                 self.send(.hostLogRequest(request), to: id)
             }
+        }
+    }
+
+    public func updateLocalConfiguration(_ configuration: TrackpadConfiguration) {
+        queue.async {
+            guard let snapshot = self.configurationState.applyLocal(
+                configuration,
+                sourceDeviceId: self.hostConfigurationSourceId,
+                updatedAtNanos: Self.currentTimestampNanos()
+            ) else {
+                return
+            }
+
+            self.processor.applyConfiguration(configuration)
+            self.configurationHandler(configuration)
+            self.broadcastConfiguration(snapshot, except: nil)
         }
     }
 
@@ -201,10 +229,43 @@ public final class LanHostServer: @unchecked Sendable {
     private func handle(_ frame: SessionFrame, from id: UUID) -> Bool {
         switch frame {
         case .clientHello(let hello):
+            guard hello.protocolVersion == 1 else {
+                logger.warning(category: "pairing", "rejected connection=\(id) reason=unsupported protocol version")
+                updateStatus(state: status.state, lastError: "unsupported protocol version")
+                return false
+            }
+
+            do {
+                if try authorizedClientStore.validate(
+                    hello,
+                    remoteAddress: remoteAddress(for: id),
+                    timestampNanos: Self.currentTimestampNanos()
+                ) {
+                    authorizedConnections.insert(id)
+                    logger.info(category: "pairing", "trusted connection=\(id) deviceId=\(hello.deviceId) deviceName=\(hello.deviceName)")
+                    sendCurrentConfiguration(to: id)
+                    updateStatus(state: status.state, clearLastError: true)
+                    return true
+                }
+            } catch {
+                logger.error(category: "pairing", "trusted validation failed connection=\(id) deviceId=\(hello.deviceId) error=\(String(describing: error))")
+            }
+
             switch pairingPolicy.validate(hello) {
             case .accepted:
                 authorizedConnections.insert(id)
                 logger.info(category: "pairing", "accepted connection=\(id) deviceId=\(hello.deviceId) deviceName=\(hello.deviceName)")
+                do {
+                    let trustedClientKey = try authorizedClientStore.authorize(
+                        hello,
+                        remoteAddress: remoteAddress(for: id),
+                        timestampNanos: Self.currentTimestampNanos()
+                    )
+                    send(.trustedClientKey(trustedClientKey), to: id)
+                } catch {
+                    logger.error(category: "pairing", "trusted key persist failed connection=\(id) deviceId=\(hello.deviceId) error=\(String(describing: error))")
+                }
+                sendCurrentConfiguration(to: id)
                 updateStatus(state: status.state, clearLastError: true)
                 return true
             case .rejected(let reason):
@@ -256,6 +317,60 @@ public final class LanHostServer: @unchecked Sendable {
                 updateStatus(state: status.state, lastError: String(describing: error))
                 return true
             }
+        case .scrollMomentumSettings(let settings):
+            guard authorizedConnections.contains(id) else {
+                logger.warning(category: "input", "rejected unpaired scroll momentum settings connection=\(id)")
+                updateStatus(state: status.state, lastError: "scroll momentum settings received before pairing")
+                return false
+            }
+
+            let configuration = configurationState.configuration.withScrollMomentum(settings)
+            if let snapshot = configurationState.applyLocal(
+                configuration,
+                sourceDeviceId: id.uuidString,
+                updatedAtNanos: Self.currentTimestampNanos()
+            ) {
+                processor.applyConfiguration(configuration)
+                configurationHandler(configuration)
+                broadcastConfiguration(snapshot, except: id)
+            }
+            logger.info(category: "input", "received scroll momentum settings connection=\(id) amount=\(settings.amount) decay=\(settings.decayRate) tailMs=\(settings.tailWindowMilliseconds)")
+            updateStatus(state: status.state, clearLastError: true)
+            return true
+        case .configurationSync(let snapshot):
+            guard authorizedConnections.contains(id) else {
+                logger.warning(category: "config", "rejected unpaired configuration sync connection=\(id) source=\(snapshot.sourceDeviceId)")
+                updateStatus(state: status.state, lastError: "configuration sync received before pairing")
+                return false
+            }
+
+            switch configurationState.applyRemote(snapshot) {
+            case .applied:
+                processor.applyConfiguration(snapshot.configuration)
+                configurationHandler(snapshot.configuration)
+                broadcastConfiguration(snapshot, except: id)
+                logger.info(category: "config", "applied configuration connection=\(id) source=\(snapshot.sourceDeviceId) revision=\(snapshot.revision)")
+            case .unchanged:
+                logger.debug(category: "config", "ignored unchanged configuration connection=\(id) source=\(snapshot.sourceDeviceId) revision=\(snapshot.revision)")
+            }
+            updateStatus(state: status.state, clearLastError: true)
+            return true
+        case .trustedClientKey:
+            return true
+        }
+    }
+
+    private func sendCurrentConfiguration(to id: UUID) {
+        let snapshot = configurationState.snapshot(
+            sourceDeviceId: hostConfigurationSourceId,
+            updatedAtNanos: Self.currentTimestampNanos()
+        )
+        send(.configurationSync(snapshot), to: id)
+    }
+
+    private func broadcastConfiguration(_ snapshot: ConfigurationSyncSnapshot, except skippedId: UUID?) {
+        for id in authorizedConnections where id != skippedId {
+            send(.configurationSync(snapshot), to: id)
         }
     }
 
@@ -302,6 +417,19 @@ public final class LanHostServer: @unchecked Sendable {
             self.codecs[id] = nil
             self.authorizedConnections.remove(id)
             self.updateStatus(state: self.status.state)
+        }
+    }
+
+    private func remoteAddress(for id: UUID) -> String? {
+        guard let endpoint = connections[id]?.endpoint else {
+            return nil
+        }
+
+        switch endpoint {
+        case .hostPort(let host, let port):
+            return "\(host):\(port.rawValue)"
+        default:
+            return String(describing: endpoint)
         }
     }
 

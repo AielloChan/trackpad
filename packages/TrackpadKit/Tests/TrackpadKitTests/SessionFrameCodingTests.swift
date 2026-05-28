@@ -8,9 +8,24 @@ import Testing
             protocolVersion: 1,
             deviceId: "ios-device-1",
             deviceName: "iPhone",
-            pairingCode: "123456"
+            pairingCode: "123456",
+            trustedClientKey: "client-key"
         )
     )
+
+    let data = try JSONEncoder().encode(frame)
+    let decoded = try JSONDecoder().decode(SessionFrame.self, from: data)
+
+    #expect(decoded == frame)
+}
+
+@Test func trustedClientKeyFrameRoundTripsThroughJSON() throws {
+    let key = TrustedClientKey(
+        deviceId: "ios-device-1",
+        clientKey: "generated-client-key",
+        issuedAtNanos: 1_000
+    )
+    let frame = SessionFrame.trustedClientKey(key)
 
     let data = try JSONEncoder().encode(frame)
     let decoded = try JSONDecoder().decode(SessionFrame.self, from: data)
@@ -88,4 +103,79 @@ import Testing
     let decoded = try JSONDecoder().decode(SessionFrame.self, from: data)
 
     #expect(decoded == frame)
+}
+
+@Test func scrollMomentumSettingsFrameRoundTripsThroughJSON() throws {
+    let frame = SessionFrame.scrollMomentumSettings(
+        ScrollMomentumSettings(
+            amount: 1.4,
+            decayRate: 0.9,
+            tailWindowMilliseconds: 120
+        )
+    )
+
+    let data = try JSONEncoder().encode(frame)
+    let decoded = try JSONDecoder().decode(SessionFrame.self, from: data)
+
+    #expect(decoded == frame)
+}
+
+@Test func configurationSyncFrameRoundTripsThroughJSON() throws {
+    let configuration = TrackpadConfiguration(
+        pointer: PointerConfiguration(speedMultiplier: 2.1),
+        gestures: GestureConfiguration(
+            tapMaximumDurationMilliseconds: 250,
+            tapDragMaximumIntervalMilliseconds: 140,
+            scrollReleaseTapSuppressionMilliseconds: 80
+        ),
+        scrollMomentum: ScrollMomentumSettings(
+            amount: 1.2,
+            decayRate: 0.88,
+            tailWindowMilliseconds: 120
+        )
+    )
+    let frame = SessionFrame.configurationSync(
+        ConfigurationSyncSnapshot(
+            revision: 7,
+            updatedAtNanos: 42,
+            sourceDeviceId: "ios-1",
+            configuration: configuration
+        )
+    )
+
+    let data = try JSONEncoder().encode(frame)
+    let decoded = try JSONDecoder().decode(SessionFrame.self, from: data)
+
+    #expect(decoded == frame)
+}
+
+@Test func configurationSyncStateAppliesDifferentSnapshotsOnly() {
+    var state = ConfigurationSyncState(configuration: .defaults)
+
+    #expect(state.applyLocal(.defaults, sourceDeviceId: "ios-1", updatedAtNanos: 10) == nil)
+
+    let changed = TrackpadConfiguration.defaults.withPointerSpeedMultiplier(3)
+    let localSnapshot = state.applyLocal(changed, sourceDeviceId: "ios-1", updatedAtNanos: 11)
+
+    #expect(localSnapshot?.revision == 1)
+    #expect(localSnapshot?.configuration == changed)
+    #expect(state.configuration == changed)
+
+    let unchangedRemote = ConfigurationSyncSnapshot(
+        revision: 2,
+        updatedAtNanos: 12,
+        sourceDeviceId: "mac-1",
+        configuration: changed
+    )
+    #expect(state.applyRemote(unchangedRemote) == .unchanged)
+
+    let remoteConfiguration = changed.withScrollMomentumAmount(1.8)
+    let remoteSnapshot = ConfigurationSyncSnapshot(
+        revision: 3,
+        updatedAtNanos: 13,
+        sourceDeviceId: "mac-1",
+        configuration: remoteConfiguration
+    )
+    #expect(state.applyRemote(remoteSnapshot) == .applied)
+    #expect(state.configuration == remoteConfiguration)
 }

@@ -2,12 +2,18 @@ import Testing
 import TrackpadKit
 @testable import TrackpadIOSCore
 
-@Test func touchBeginDoesNotEmitPointerMoveEvent() {
+@Test func contactBeginEmitsContactEventWithoutPointerMovement() {
     var mapper = TouchSurfaceEventMapper(timestampProvider: { 100 })
 
-    let event = mapper.begin(at: TouchPoint(x: 10, y: 20))
+    let event = mapper.contactBegan(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 10, y: 20)),
+    ])
 
-    #expect(event == nil)
+    #expect(event == InputEvent(
+        sequenceNumber: 1,
+        timestampNanos: 100,
+        kind: .contact(ContactEvent(phase: .began, contactCount: 1))
+    ))
 }
 
 @Test func touchMoveEmitsPointerDeltaFromPreviousPoint() {

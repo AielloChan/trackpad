@@ -112,6 +112,33 @@ import TrackpadKit
     ])
 }
 
+@Test func contactEventDoesNotMapToInputCommandOrResetDoubleClickState() {
+    var mapper = MacInputMapper(doubleClickIntervalSeconds: 0.5)
+    let firstTap = InputEvent(
+        sequenceNumber: 30,
+        timestampNanos: 1_000_000_000,
+        kind: .tap(TapEvent(button: .left))
+    )
+    let contact = InputEvent(
+        sequenceNumber: 31,
+        timestampNanos: 1_100_000_000,
+        kind: .contact(ContactEvent(phase: .began, contactCount: 1))
+    )
+    let secondTap = InputEvent(
+        sequenceNumber: 32,
+        timestampNanos: 1_200_000_000,
+        kind: .tap(TapEvent(button: .left))
+    )
+
+    _ = mapper.commands(for: firstTap)
+
+    #expect(mapper.commands(for: contact).isEmpty)
+    #expect(mapper.commands(for: secondTap) == [
+        .button(button: .left, phase: .down, clickCount: 2),
+        .button(button: .left, phase: .up, clickCount: 2),
+    ])
+}
+
 @Test func systemActionHonorsDisabledThreeFingerVerticalSwipeSetting() {
     var mapper = MacInputMapper(systemGestureSettings: MacSystemGestureSettings(
         threeFingerVerticalSwipeEnabled: false,

@@ -41,7 +41,7 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] LAN TCP transport uses no-delay parameters for the current Apple-platform MVP.
 - [x] macOS host injects live dragged mouse events while the left button is held down.
 - [x] iOS two-finger scroll release no longer starts a one-finger tap state.
-- [x] iOS two-finger scroll release sends a clean scroll-ended event without client-generated momentum.
+- [x] iOS two-finger scroll release sends a clean scroll-ended event before host-generated momentum.
 - [x] Shared scroll protocol carries optional momentum phase for trackpad-like inertial scrolling.
 - [x] macOS scroll injection sets continuous scroll, scroll phase, and momentum phase fields.
 - [x] Disabled earlier iOS velocity-based scroll momentum after real-device jump reports.
@@ -61,6 +61,7 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Shared QR pairing payload encodes LAN host, port, pairing code, and service name.
 - [x] macOS host app displays a scannable QR pairing code.
 - [x] iOS app scans a macOS pairing QR code and connects with the encoded host, port, and code.
+- [x] iOS QR scanner updates its camera preview orientation when the device rotates.
 - [x] iOS single-finger movement forwards coalesced touch samples to reduce apparent pointer jumps.
 - [x] iOS client displays the active connection path so wired/cable-like routes are visible.
 - [x] Add temporary `#########` diagnostics for the remaining one-finger pointer jump issue.
@@ -87,6 +88,19 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Keep three-finger gesture sessions active until all touches lift, with one system action per session.
 - [x] Preserve single-moving-contact pointer movement while three fingers are down.
 - [x] Add realtime input backpressure handling for stale pointer and scroll changed reports.
+- [x] Reintroduce conservative host-side axis-locked two-finger scroll momentum with live amount tuning.
+- [x] Calculate host-side two-finger scroll momentum from a tunable tail velocity window.
+- [x] Expose two-finger scroll momentum decay-rate tuning on iOS as host settings.
+- [x] Default two-finger scroll tail velocity sampling to 120 ms.
+- [x] Expose two-finger scroll tail velocity window tuning on iOS.
+- [x] Send scroll momentum settings from iOS as low-frequency host control frames.
+- [x] Compact the iOS connected tuning panel into a two-column slider layout.
+- [x] Add a formal configuration sync channel with initial sync and last-write-wins snapshots.
+- [x] Widen host-side scroll momentum tuning ranges and retune defaults for longer native-like inertial scrolling.
+- [x] Add contact boundary reports so touching the iOS surface immediately cancels host-generated inertial scrolling.
+- [x] Normalize host-side scroll momentum to display frame intervals and carry subpixel wheel deltas into the tail.
+- [x] Remove iOS connected-state tuning sliders and keep the mobile connected bar status-only.
+- [x] Add JSONL-backed trusted-client auto pairing after first short-code pairing.
 - [ ] Manually verify two-finger scroll release no longer causes sudden inertial jumps on a real iPad.
 - [ ] Manually verify two-finger scroll release no longer emits a terminal reverse scroll on a real iPad.
 
@@ -118,7 +132,7 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [ ] Fix `TrackpadIOS` scheme destination discovery so `xcodebuild -showdestinations` lists installed simulators.
 - [ ] Manually compare touch sample Hz, sent event Hz, RTT, and perceived pointer smoothness on a real device.
 - [ ] Manually verify live window dragging and two-finger scroll release on a real iPhone/iPad.
-- [ ] Redesign velocity-based momentum before comparing against native trackpad scrolling.
+- [x] Redesign velocity-based momentum before comparing against native trackpad scrolling.
 - [ ] Manually tune pointer speed on a real iPhone/iPad while connected to macOS.
 - [ ] Manually verify two-finger scroll release no longer causes accidental left click on a real iPhone/iPad.
 - [ ] Manually tune tap duration, drag interval, and scroll guard timing on a real iPhone/iPad.
@@ -135,10 +149,16 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [ ] Manually verify pointer movement reverses immediately after pushing against a screen edge on a real iPhone/iPad.
 - [ ] Manually verify one three-finger touch session cannot trigger a second system action until all touches lift.
 - [ ] Manually compare pointer smoothness under high host CPU load before and after realtime input backpressure.
+- [ ] Manually tune the reintroduced scroll momentum amount on a real iPad.
+- [ ] Manually tune the reintroduced scroll momentum decay rate on a real iPad.
+- [ ] Manually tune the reintroduced scroll momentum tail velocity window on a real iPad.
+- [ ] Manually compare the longer host-side inertial scroll distance against a native Apple trackpad.
+- [ ] Manually verify inertial scroll tail smoothness on a 60 Hz and a 120 Hz display.
+- [ ] Manually verify reconnecting a known real iPhone/iPad skips the current pairing code.
 
 ## Deferred
 
-- [ ] Persist trusted devices after QR or short-code pairing.
+- [x] Persist trusted devices after QR or short-code pairing.
 - [ ] Live transport migration to a lower-latency cable-like path after a session is already connected.
 - [x] Report-level coalescing for pending pointer and scroll changed reports.
 - [ ] Device key persistence and trust revocation.

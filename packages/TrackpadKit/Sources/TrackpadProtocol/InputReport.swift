@@ -30,6 +30,8 @@ public struct InputReport: Equatable, Sendable {
             )
         case .systemAction(let systemAction):
             self.kind = .systemAction(action: systemAction.action)
+        case .contact(let contact):
+            self.kind = .contact(phase: contact.phase, contactCount: contact.contactCount)
         }
     }
 
@@ -46,6 +48,8 @@ public struct InputReport: Equatable, Sendable {
             eventKind = .scroll(ScrollEvent(dx: dx, dy: dy, phase: phase, momentumPhase: momentumPhase))
         case .systemAction(let action):
             eventKind = .systemAction(SystemActionEvent(action: action))
+        case .contact(let phase, let contactCount):
+            eventKind = .contact(ContactEvent(phase: phase, contactCount: contactCount))
         }
 
         return InputEvent(
@@ -62,4 +66,5 @@ public enum InputReportKind: Equatable, Sendable {
     case tap(button: PointerButton)
     case scroll(dx: Double, dy: Double, phase: ScrollPhase, momentumPhase: ScrollPhase?)
     case systemAction(action: SystemAction)
+    case contact(phase: ContactPhase, contactCount: Int)
 }

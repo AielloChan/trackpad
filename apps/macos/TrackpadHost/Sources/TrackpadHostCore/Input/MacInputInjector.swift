@@ -6,6 +6,7 @@ import TrackpadKit
 public struct MacInputInjector: Sendable {
     private let logger: any HostLogging
     private let displayBoundsProvider: @Sendable () -> [CGRect]
+    private let scrollWheelQuantizer = LockedScrollWheelIntegerDeltaQuantizer()
 
     public init(
         logger: any HostLogging = DisabledHostLogger(),
@@ -65,12 +66,13 @@ public struct MacInputInjector: Sendable {
     }
 
     private func postScroll(dx: Double, dy: Double, phase: ScrollPhase, momentumPhase: ScrollPhase?) {
+        let integerDeltas = scrollWheelQuantizer.integerDeltas(dx: dx, dy: dy, phase: phase)
         let event = CGEvent(
             scrollWheelEvent2Source: nil,
             units: .pixel,
             wheelCount: 2,
-            wheel1: Int32(dy),
-            wheel2: Int32(dx),
+            wheel1: integerDeltas.dy,
+            wheel2: integerDeltas.dx,
             wheel3: 0
         )
         event?.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)

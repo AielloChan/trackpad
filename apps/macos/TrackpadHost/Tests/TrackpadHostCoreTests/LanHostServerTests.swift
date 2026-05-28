@@ -145,12 +145,78 @@ import TrackpadKit
             ),
             .ping(SessionPing(id: 9, clientSentNanos: 1_000)),
         ],
-        port: port
+        port: port,
+        minimumFrameCount: 3
     )
 
-    #expect(frames == [
-        .pong(SessionPong(id: 9, clientSentNanos: 1_000, hostReceivedNanos: frames.first?.pongHostReceivedNanos ?? 0)),
-    ])
+    #expect(frames.contains { frame in
+        if case .configurationSync(let snapshot) = frame {
+            return snapshot.configuration == .defaults
+        }
+
+        return false
+    })
+    #expect(frames.contains { frame in
+        if case .pong(let pong) = frame {
+            return pong.id == 9 && pong.clientSentNanos == 1_000
+        }
+
+        return false
+    })
+}
+
+@Test func lanHostServerAcceptsTrustedClientKeyAfterInitialPairing() throws {
+    let port = nextLanHostServerTestPort()
+    let performer = LanServerRecordingInputPerformer()
+    let processor = HostEventProcessor(performer: performer)
+    let statuses = HostStatusRecorder()
+    let authorizedClientStore = AuthorizedClientStore(fileURL: temporaryAuthorizedClientFileURL())
+    let server = LanHostServer(
+        port: port,
+        pairingPolicy: PairingPolicy(requiredCode: PairingCode("654321")),
+        processor: processor,
+        authorizedClientStore: authorizedClientStore,
+        statusHandler: statuses.record
+    )
+    try server.start()
+    defer {
+        server.stop()
+    }
+
+    #expect(statuses.waitForStatus(where: { $0.state == .running }) != nil)
+
+    let initialFrames = try SessionFrameRoundTripClient.send(
+        [
+            .clientHello(
+                ClientHello(
+                    protocolVersion: 1,
+                    deviceId: "test-client",
+                    deviceName: "Test Client",
+                    pairingCode: "654321"
+                )
+            ),
+        ],
+        port: port
+    )
+    let trustedKey = try #require(initialFrames.trustedClientKey?.clientKey)
+
+    let event = InputEvent(
+        sequenceNumber: 109,
+        timestampNanos: 1_009,
+        kind: .pointerMove(PointerMoveEvent(dx: 5, dy: 6))
+    )
+    try InputEventClient.send(
+        event,
+        port: port,
+        pairingCode: PairingCode("000000"),
+        trustedClientKey: trustedKey,
+        deviceId: "test-client",
+        deviceName: "Test Client",
+        timeout: 2
+    )
+
+    #expect(statuses.waitForStatus(where: { $0.handledEventCount == 1 && $0.lastError == nil }) != nil)
+    #expect(performer.commands == [.move(dx: 5, dy: 6)])
 }
 
 @Test func lanHostServerRequestsAndPersistsClientLogUpload() throws {
@@ -340,8 +406,31 @@ private func waitForUploadedClientLog(in directory: URL, timeout: TimeInterval =
     return nil
 }
 
+private func temporaryAuthorizedClientFileURL() -> URL {
+    FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        .appendingPathComponent("authorized_clients.jsonl")
+}
+
+private extension Array where Element == SessionFrame {
+    var trustedClientKey: TrustedClientKey? {
+        for frame in self {
+            if case .trustedClientKey(let key) = frame {
+                return key
+            }
+        }
+
+        return nil
+    }
+}
+
 private enum SessionFrameRoundTripClient {
-    static func send(_ frames: [SessionFrame], port: UInt16, timeout: TimeInterval = 2) throws -> [SessionFrame] {
+    static func send(
+        _ frames: [SessionFrame],
+        port: UInt16,
+        timeout: TimeInterval = 2,
+        minimumFrameCount: Int = 1
+    ) throws -> [SessionFrame] {
         let data = try frames.reduce(into: Data()) { result, frame in
             result.append(try encodeFrame(frame))
         }
@@ -351,7 +440,7 @@ private enum SessionFrameRoundTripClient {
             using: .tcp
         )
         let queue = DispatchQueue(label: "trackpad.host.tests.round-trip-client")
-        let state = SessionFrameRoundTripState()
+        let state = SessionFrameRoundTripState(minimumFrameCount: minimumFrameCount)
 
         connection.stateUpdateHandler = { nwState in
             if case .ready = nwState {
@@ -392,7 +481,9 @@ private enum SessionFrameRoundTripClient {
 
             if let data, !data.isEmpty {
                 do {
-                    state.append(try data.decodedSessionFrames())
+                    if !state.append(try data.decodedSessionFrames()) {
+                        receive(on: connection, state: state)
+                    }
                 } catch {
                     state.finish(error)
                 }
@@ -410,19 +501,29 @@ private enum SessionFrameRoundTripClient {
 private final class SessionFrameRoundTripState: @unchecked Sendable {
     private let group = DispatchGroup()
     private let lock = NSLock()
+    private let minimumFrameCount: Int
     private(set) var frames: [SessionFrame] = []
     private(set) var error: (any Error)?
     private var isFinished = false
 
-    init() {
+    init(minimumFrameCount: Int) {
+        self.minimumFrameCount = minimumFrameCount
         group.enter()
     }
 
-    func append(_ frames: [SessionFrame]) {
+    func append(_ frames: [SessionFrame]) -> Bool {
         lock.lock()
+        defer {
+            lock.unlock()
+        }
+
         self.frames.append(contentsOf: frames)
-        finishLocked(nil)
-        lock.unlock()
+        if self.frames.count >= minimumFrameCount {
+            finishLocked(nil)
+            return true
+        }
+
+        return false
     }
 
     func finish(_ error: (any Error)?) {
@@ -475,15 +576,5 @@ private final class LanHostServerTestPortAllocator: @unchecked Sendable {
         let port = nextPort
         nextPort += 1
         return port
-    }
-}
-
-private extension SessionFrame {
-    var pongHostReceivedNanos: UInt64? {
-        guard case .pong(let pong) = self else {
-            return nil
-        }
-
-        return pong.hostReceivedNanos
     }
 }

@@ -5,7 +5,7 @@ This document describes the current Trackpad v1 wire protocol used between the m
 The protocol is intentionally split into two message families:
 
 - JSON Lines `SessionFrame` control messages for low-frequency, human-readable session traffic.
-- Fixed-size binary `InputReport` messages for high-frequency pointer, button, tap, scroll, and system action input.
+- Fixed-size binary `InputReport` messages for high-frequency pointer, button, tap, scroll, contact, and system action input.
 
 This is a HID-like application protocol. It borrows the compact report idea from HID, but it is not a USB HID descriptor, Bluetooth HID profile, DriverKit virtual HID device, or OS-level Magic Trackpad clone.
 
@@ -35,15 +35,17 @@ Future transports can carry the same byte stream semantics if they are reliable 
 2. The host generates a six-digit pairing code.
 3. The mobile client connects to the host.
 4. The client sends `SessionFrame.clientHello` as a JSON Lines control message.
-5. The host validates the pairing code.
+5. The host validates either a previously issued trusted client key or the current pairing code.
 6. After validation, the host accepts input reports, ping frames, and diagnostics traffic from that connection.
-7. If validation fails, the host rejects or closes the connection and ignores input.
+7. If the short code was used, the host sends a new `trustedClientKey` frame for future reconnects.
+8. If validation fails, the host rejects or closes the connection and ignores input.
 
 ```text
 client                                           host
   |                                               |
   |--- JSON clientHello ------------------------->|
-  |                                               | validate pairing code
+  |                                               | validate trusted key or pairing code
+  |<-- JSON trustedClientKey ---------------------| after short-code pairing
   |--- binary InputReport ----------------------->| inject input
   |--- JSON ping -------------------------------->|
   |<-- JSON pong ---------------------------------|
@@ -77,7 +79,7 @@ JSON control messages are line-delimited UTF-8 JSON values encoded by Swift `Cod
 Current Swift enum encoding wraps associated values under the case name and `_0`. Example:
 
 ```json
-{"clientHello":{"_0":{"protocolVersion":1,"deviceId":"ios-device-1","deviceName":"iPad","pairingCode":"123456"}}}
+{"clientHello":{"_0":{"protocolVersion":1,"deviceId":"ios-device-1","deviceName":"iPad","pairingCode":"123456","trustedClientKey":"optional-client-key"}}}
 ```
 
 Every JSON control message is terminated by one newline byte:
@@ -96,6 +98,19 @@ Sent by the client immediately after connecting.
 | `deviceId` | `String` | Client device identifier. Currently generated from the iOS vendor identifier when available. |
 | `deviceName` | `String` | Human-readable client name. |
 | `pairingCode` | `String` | Six-digit code shown by the host or encoded in QR pairing. |
+| `trustedClientKey` | `String?` | Optional previously issued client key. If valid, the host authorizes the session without requiring the current pairing code. |
+
+### `trustedClientKey`
+
+Sent by the host after a successful short-code pairing.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `deviceId` | `String` | Client device id the key was issued for. |
+| `clientKey` | `String` | Random client key. The client stores this locally and sends it in future `clientHello` frames. |
+| `issuedAtNanos` | `UInt64` | Host wall-clock issue timestamp in nanoseconds. |
+
+The macOS host stores authorized clients in JSONL at `~/Library/Application Support/Trackpad/authorized_clients.jsonl`. Each line is one `AuthorizedClientRecord` containing the device id, device name, hashed client key, first/last authorized timestamps, and first/last remote address. The iOS client stores trusted host records in `trusted_hosts.jsonl` under its Application Support directory. This is trust-on-first-use persistence for the MVP; future encrypted pairing should replace raw JSONL secrets with stronger platform key storage and challenge-response validation.
 
 ### `ping`
 
@@ -127,6 +142,53 @@ Sent or used by the host when a session cannot be accepted.
 ### `hostLogRequest`
 
 Sent by the host to ask an authorized client to upload a bounded local diagnostic log.
+
+### `scrollMomentumSettings`
+
+Compatibility frame sent by an authorized client when the user changes inertial scroll tuning. New clients should send `configurationSync`.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `amount` | `Double` | Multiplier applied by the host to the locally computed initial momentum delta. |
+| `decayRate` | `Double` | Per-frame decay factor used by the host-side momentum synthesizer. |
+| `tailWindowMilliseconds` | `Double` | Final finger-scroll sample window used by the host to estimate release velocity. |
+
+### `configurationSync`
+
+Sent by either endpoint after pairing and whenever a local setting changes. This is the configuration sync channel. It carries a full snapshot instead of a per-setting patch so reconnect and out-of-order UI updates stay simple.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `revision` | `UInt64` | Sender-local revision counter. |
+| `updatedAtNanos` | `UInt64` | Sender-local monotonic timestamp for diagnostics. |
+| `sourceDeviceId` | `String` | Endpoint id that produced this snapshot. |
+| `configuration` | `TrackpadConfiguration` | Full replicated settings snapshot. |
+
+Current `TrackpadConfiguration` fields:
+
+| Field | Type | Consumer |
+| --- | --- | --- |
+| `pointer.speedMultiplier` | `Double` | iOS pointer event tuning. |
+| `gestures.tapMaximumDurationMilliseconds` | `Double` | iOS tap recognition. |
+| `gestures.tapDragMaximumIntervalMilliseconds` | `Double` | iOS tap-then-drag recognition. |
+| `gestures.scrollReleaseTapSuppressionMilliseconds` | `Double` | iOS scroll-release tap guard. |
+| `scrollMomentum.amount` | `Double` | macOS host momentum synthesis. |
+| `scrollMomentum.decayRate` | `Double` | macOS host momentum synthesis. |
+| `scrollMomentum.tailWindowMilliseconds` | `Double` | macOS host momentum synthesis. |
+
+Current defaults and UI-supported tuning ranges:
+
+| Field | Default | Range |
+| --- | --- | --- |
+| `pointer.speedMultiplier` | `2.1` | `0.2...10` |
+| `gestures.tapMaximumDurationMilliseconds` | `250` | `60...500 ms` |
+| `gestures.tapDragMaximumIntervalMilliseconds` | `140` | `40...250 ms` |
+| `gestures.scrollReleaseTapSuppressionMilliseconds` | `80` | `0...250 ms` |
+| `scrollMomentum.amount` | `5.0` | `0...12` |
+| `scrollMomentum.decayRate` | `0.95` | `0.72...0.995` |
+| `scrollMomentum.tailWindowMilliseconds` | `140` | `30...500 ms` |
+
+Conflict behavior for the MVP is last-write-wins by arrival order: if the received snapshot value differs from local state, the receiver applies it and updates local controls. If the value is identical, it is ignored and not echoed back.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -173,8 +235,8 @@ Before encoding, `dx` and `dy` are rounded to the nearest fixed-point value and 
 | `12` | 8 | `UInt64` | timestampNanos | Client event timestamp in nanoseconds. |
 | `20` | 4 | `Int32` | dx | Fixed-point x delta. |
 | `24` | 4 | `Int32` | dy | Fixed-point y delta. |
-| `28` | 1 | `UInt8` | button | Pointer button code, system action code, or `0`. |
-| `29` | 1 | `UInt8` | phase | Button phase or scroll phase, depending on kind. |
+| `28` | 1 | `UInt8` | button | Pointer button code, system action code, contact count, or `0`. |
+| `29` | 1 | `UInt8` | phase | Button, scroll, or contact phase, depending on kind. |
 | `30` | 1 | `UInt8` | momentumPhase | Scroll momentum phase or `0`. |
 | `31` | 1 | `UInt8` | reserved | Reserved. Current value is `0`. |
 
@@ -187,6 +249,7 @@ Before encoding, `dx` and `dy` are rounded to the nearest fixed-point value and 
 | `3` | `tap` | `sequenceNumber`, `timestampNanos`, `button` |
 | `4` | `scroll` | `sequenceNumber`, `timestampNanos`, `dx`, `dy`, `phase`, `momentumPhase` |
 | `5` | `systemAction` | `sequenceNumber`, `timestampNanos`, `button` |
+| `6` | `contact` | `sequenceNumber`, `timestampNanos`, `button`, `phase` |
 
 Unknown report kinds are invalid for v1 and should close or reject the stream.
 
@@ -235,6 +298,14 @@ Used by `systemAction` in the `button` byte.
 | `3` | `previousSpace` |
 | `4` | `nextSpace` |
 
+### Contact Phases
+
+Used by `contact` in the `phase` byte. `contact` uses the `button` byte as the current contact count. A `contact.began` event is a boundary event only: hosts must not inject pointer, button, or scroll input for it. The macOS host uses it to cancel any locally scheduled inertial scroll as soon as a finger touches the iOS surface again.
+
+| Value | Phase |
+| ---: | --- |
+| `1` | began |
+
 ## Input Semantics
 
 ### `pointerMove`
@@ -281,13 +352,15 @@ scroll(dx, dy, phase=changed, momentumPhase=none)
 scroll(0, 0, phase=ended, momentumPhase=none)
 ```
 
-Client-generated inertial scroll:
+Host-generated inertial scroll commands:
 
 ```text
 scroll(dx, dy, phase=changed, momentumPhase=changed)
 scroll(dx, dy, phase=changed, momentumPhase=changed)
 scroll(0, 0, phase=ended, momentumPhase=ended)
 ```
+
+These momentum commands are generated inside the host input layer after it receives a finger-driven `scroll.ended`. They are not sent as high-frequency reports by the current iOS client.
 
 ### `systemAction`
 
@@ -303,6 +376,10 @@ three-finger swipe left  -> systemAction(nextSpace)
 ```
 
 The macOS host reads the current three-finger trackpad settings before executing these actions. If three-finger vertical or horizontal swipes are disabled, or three-finger drag is enabled, the corresponding remote three-finger system actions are ignored. Mission Control and App Expose use Dock's Mission Control notification entry point on macOS so they do not depend on the user's keyboard shortcut settings. Space navigation is intentionally mapped to the same keyboard shortcut path as `Control-Left` and `Control-Right`.
+
+### `contact`
+
+Generated when the iOS surface receives one or more new touches. It is intentionally separate from pointer movement, tap, and scroll recognition so it can interrupt host-generated momentum without changing gesture semantics. Hosts should treat it as reliable and ordered, but should not map it to visible input.
 
 ## Coalescing Rules
 
@@ -324,6 +401,7 @@ Not allowed:
 - Do not coalesce across `pointerButton`.
 - Do not coalesce across `tap`.
 - Do not coalesce across `systemAction`.
+- Do not coalesce across `contact`.
 - Do not coalesce across scroll `began` or `ended`.
 - Do not merge finger scroll and momentum scroll reports with different `momentumPhase`.
 
