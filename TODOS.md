@@ -82,6 +82,10 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Map three-finger left/right Space navigation to `Control-Left` and `Control-Right` instead of direct managed Spaces switching.
 - [x] Diagnose three-finger left/right Space navigation reaching macOS but failing on missing Automation permission.
 - [x] Add macOS host Automation permission status and request path for `System Events`.
+- [x] Clamp macOS pointer injection to active display bounds so edge movement does not accumulate offscreen debt.
+- [x] Raise iOS pointer speed tuning upper bound to 10x.
+- [x] Keep three-finger gesture sessions active until all touches lift, with one system action per session.
+- [x] Preserve single-moving-contact pointer movement while three fingers are down.
 - [ ] Manually verify two-finger scroll release no longer causes sudden inertial jumps on a real iPad.
 - [ ] Manually verify two-finger scroll release no longer emits a terminal reverse scroll on a real iPad.
 
@@ -127,6 +131,8 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [ ] Manually verify host-triggered client log upload writes an iOS log file on macOS.
 - [x] Manually verify three-finger swipe up/down/left/right on a real iPhone/iPad.
 - [ ] Manually verify `TrackpadHostApp` Automation permission stays granted after restart and three-finger left/right changes Spaces.
+- [ ] Manually verify pointer movement reverses immediately after pushing against a screen edge on a real iPhone/iPad.
+- [ ] Manually verify one three-finger touch session cannot trigger a second system action until all touches lift.
 
 ## Deferred
 

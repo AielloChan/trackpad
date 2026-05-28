@@ -36,5 +36,5 @@ import TrackpadKit
 
 @Test func pointerSpeedTuningClampsMultiplierToUsableRange() {
     #expect(InputEventTuning(pointerSpeedMultiplier: 0.05).pointerSpeedMultiplier == 0.2)
-    #expect(InputEventTuning(pointerSpeedMultiplier: 5).pointerSpeedMultiplier == 3)
+    #expect(InputEventTuning(pointerSpeedMultiplier: 12).pointerSpeedMultiplier == 10)
 }

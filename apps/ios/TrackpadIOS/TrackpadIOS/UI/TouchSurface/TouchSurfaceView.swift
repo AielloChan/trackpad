@@ -79,7 +79,7 @@ struct TouchSurfaceView: View {
             tuningSlider(
                 title: "Pointer",
                 value: $model.pointerSpeedMultiplier,
-                range: 0.2...3,
+                range: 0.2...10,
                 step: 0.1,
                 format: { String(format: "%.1fx", $0) }
             )

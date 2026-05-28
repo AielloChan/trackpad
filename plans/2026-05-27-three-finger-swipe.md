@@ -30,6 +30,7 @@
 - [x] Replace direct managed Spaces switching with `Control-Left` and `Control-Right` keyboard shortcut injection for left/right swipes.
 - [x] Diagnose macOS Automation denial for the `System Events` Space-switching path.
 - [x] Add an explicit host app Automation permission status and request action.
+- [x] Keep three-finger gesture sessions active until all touches lift, with one system action per session.
 - [x] Update protocol and project documentation.
 - [x] Run package, iOS core, and macOS host tests.
 - [x] Build the iOS app for the connected real device.
@@ -49,6 +50,7 @@
 - Direct CGEvent `Control-Left` / `Control-Right` posting was verified not to switch Spaces on the local Mac, while `System Events` can trigger the same shortcuts when Automation permission is granted.
 - `TrackpadHostApp` now declares `NSAppleEventsUsageDescription`, exposes Automation permission status, and can request access to control `System Events`.
 - Real-device verification confirmed three-finger left/right Space switching works after granting Automation permission.
+- iOS now keeps a three-finger session alive until every touch lifts. A single moving contact stays mapped to pointer movement; at least two contacts must move far enough to trigger the single system action allowed for that session.
 - `xcodebuild` passed for the connected iOS device. The build still reports the existing orientation warning.
 - `xcrun devicectl device install app` installed `com.trackpad.ios` on the connected device.
 - Automatic iOS launch was blocked because the device was locked.

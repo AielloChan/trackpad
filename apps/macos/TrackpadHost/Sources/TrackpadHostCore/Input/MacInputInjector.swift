@@ -5,9 +5,14 @@ import TrackpadKit
 
 public struct MacInputInjector: Sendable {
     private let logger: any HostLogging
+    private let displayBoundsProvider: @Sendable () -> [CGRect]
 
-    public init(logger: any HostLogging = DisabledHostLogger()) {
+    public init(
+        logger: any HostLogging = DisabledHostLogger(),
+        displayBoundsProvider: (@Sendable () -> [CGRect])? = nil
+    ) {
         self.logger = logger
+        self.displayBoundsProvider = displayBoundsProvider ?? Self.activeDisplayBounds
     }
 
     public func perform(_ command: MacInputCommand) {
@@ -26,8 +31,7 @@ public struct MacInputInjector: Sendable {
     }
 
     private func movePointer(dx: Double, dy: Double) {
-        let current = currentPointerLocation()
-        let next = CGPoint(x: current.x + dx, y: current.y + dy)
+        let next = nextPointerLocation(dx: dx, dy: dy)
         CGEvent(
             mouseEventSource: nil,
             mouseType: .mouseMoved,
@@ -37,8 +41,7 @@ public struct MacInputInjector: Sendable {
     }
 
     private func dragPointer(button: PointerButton, dx: Double, dy: Double) {
-        let current = currentPointerLocation()
-        let next = CGPoint(x: current.x + dx, y: current.y + dy)
+        let next = nextPointerLocation(dx: dx, dy: dy)
         CGEvent(
             mouseEventSource: nil,
             mouseType: button.draggedEventType,
@@ -80,6 +83,27 @@ public struct MacInputInjector: Sendable {
 
     private func currentPointerLocation() -> CGPoint {
         CGEvent(source: nil)?.location ?? .zero
+    }
+
+    private func nextPointerLocation(dx: Double, dy: Double) -> CGPoint {
+        PointerBoundsClamper.locationAfterApplyingDelta(
+            current: currentPointerLocation(),
+            dx: dx,
+            dy: dy,
+            displayBounds: displayBoundsProvider()
+        )
+    }
+
+    private static func activeDisplayBounds() -> [CGRect] {
+        var displayCount: UInt32 = 0
+        CGGetActiveDisplayList(0, nil, &displayCount)
+        guard displayCount > 0 else {
+            return []
+        }
+
+        var displays = Array(repeating: CGDirectDisplayID(), count: Int(displayCount))
+        CGGetActiveDisplayList(displayCount, &displays, &displayCount)
+        return displays.prefix(Int(displayCount)).map(CGDisplayBounds)
     }
 
     private func postSystemAction(_ action: SystemAction) {

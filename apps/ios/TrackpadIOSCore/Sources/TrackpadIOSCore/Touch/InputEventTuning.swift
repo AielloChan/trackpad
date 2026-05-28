@@ -7,7 +7,7 @@ public struct InputEventTuning: Equatable, Sendable {
     public let pointerSpeedMultiplier: Double
 
     public init(pointerSpeedMultiplier: Double) {
-        self.pointerSpeedMultiplier = min(max(pointerSpeedMultiplier, 0.2), 3)
+        self.pointerSpeedMultiplier = min(max(pointerSpeedMultiplier, 0.2), 10)
     }
 
     public func apply(to events: [InputEvent]) -> [InputEvent] {

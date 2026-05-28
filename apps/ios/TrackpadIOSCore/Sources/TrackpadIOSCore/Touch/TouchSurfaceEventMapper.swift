@@ -67,13 +67,14 @@ public struct TouchSurfaceEventMapper {
         var suppressSingleFingerTap = false
         var didScroll = false
         var didEmitSystemAction = false
+        var threeFingerStartContacts: [Int: TouchPoint] = [:]
+        var threeFingerPreviousContacts: [Int: TouchPoint] = [:]
     }
 
     private var gestureState: GestureState?
     private var lastSingleTapEndNanos: UInt64?
     private var suppressSingleFingerTapUntilNanos: UInt64?
     private var suppressTapUntilNanos: UInt64?
-    private var suppressSystemActionUntilNanos: UInt64?
     public var gestureConfiguration: TouchGestureConfiguration
     private var nextSequenceNumber: UInt64 = 1
     private let timestampProvider: () -> UInt64
@@ -81,6 +82,7 @@ public struct TouchSurfaceEventMapper {
     private let firstPointerMoveRebaseTolerance: Double = 3
     private let tapDragFirstMoveRebaseTolerance: Double = 8
     private let scrollMovementTolerance: Double = 0.5
+    private let threeFingerContactMovementTolerance: Double = 8
     private let threeFingerSwipeThreshold: Double = 52
     private let threeFingerSwipeAxisDominance: Double = 1.35
 
@@ -97,6 +99,14 @@ public struct TouchSurfaceEventMapper {
     }
 
     public mutating func begin(with contacts: [TouchContact]) -> [InputEvent] {
+        if var state = gestureState,
+           state.kind == .threeFingerSwipe,
+           !contacts.isEmpty {
+            updateThreeFingerContacts(&state, with: contacts)
+            gestureState = state
+            return []
+        }
+
         guard let state = makeGestureState(from: contacts) else {
             gestureState = nil
             return []
@@ -114,10 +124,13 @@ public struct TouchSurfaceEventMapper {
         if state.kind == .twoFinger && contacts.count < 2 {
             return []
         }
-        if state.kind == .threeFingerSwipe && contacts.count != 3 {
+        if state.kind == .threeFingerSwipe && contacts.isEmpty {
             return []
         }
-        guard let currentPoint = trackedPoint(for: contacts) else {
+        let candidatePoint = state.kind == .threeFingerSwipe
+            ? averagePoint(from: contacts.map(\.point))
+            : trackedPoint(for: contacts)
+        guard let currentPoint = candidatePoint else {
             return []
         }
 
@@ -176,17 +189,37 @@ public struct TouchSurfaceEventMapper {
                 kind: .scroll(ScrollEvent(dx: dx, dy: dy, phase: phase))
             ))
         case .threeFingerSwipe:
-            guard !state.didEmitSystemAction,
-                  let action = threeFingerSwipeAction(from: state.startPoint, to: currentPoint) else {
+            updateThreeFingerContacts(&state, with: contacts)
+            let contactsMovingFromStart = threeFingerContactsMovingFromStart(in: state, contacts: contacts)
+            let contactsMovingSincePrevious = threeFingerContactsMovingSincePrevious(in: state, contacts: contacts)
+
+            if state.didEmitSystemAction {
+                state.threeFingerPreviousContacts = contactMap(from: contacts)
                 gestureState = state
                 return []
             }
 
-            state.didEmitSystemAction = true
-            events.append(makeEvent(
-                timestampNanos: timestamp,
-                kind: .systemAction(SystemActionEvent(action: action))
-            ))
+            if contactsMovingFromStart.count >= 2,
+               let startPoint = threeFingerStartPoint(in: state, contacts: contacts),
+               let action = threeFingerSwipeAction(from: startPoint, to: currentPoint) {
+                state.didEmitSystemAction = true
+                events.append(makeEvent(
+                    timestampNanos: timestamp,
+                    kind: .systemAction(SystemActionEvent(action: action))
+                ))
+            } else if contactsMovingFromStart.count < 2,
+                      contactsMovingSincePrevious.count == 1,
+                      let contact = contactsMovingSincePrevious.first,
+                      let previousPoint = state.threeFingerPreviousContacts[contact.id] {
+                events.append(makeEvent(
+                    timestampNanos: timestamp,
+                    kind: .pointerMove(PointerMoveEvent(
+                        dx: contact.point.x - previousPoint.x,
+                        dy: contact.point.y - previousPoint.y
+                    ))
+                ))
+            }
+            state.threeFingerPreviousContacts = contactMap(from: contacts)
         }
 
         gestureState = state
@@ -206,10 +239,15 @@ public struct TouchSurfaceEventMapper {
         case .twoFinger:
             shouldEndGesture = contacts.count < 2
         case .threeFingerSwipe:
-            shouldEndGesture = contacts.count < 3
+            shouldEndGesture = contacts.isEmpty
         }
 
         guard shouldEndGesture else {
+            if var state = gestureState,
+               state.kind == .threeFingerSwipe {
+                updateThreeFingerContacts(&state, with: contacts)
+                gestureState = state
+            }
             return []
         }
 
@@ -257,7 +295,6 @@ public struct TouchSurfaceEventMapper {
             if state.didEmitSystemAction {
                 suppressSingleFingerTapUntilNanos = timestamp + gestureConfiguration.scrollReleaseTapSuppressionNanos
                 suppressTapUntilNanos = timestamp + gestureConfiguration.systemActionReleaseSuppressionNanos
-                suppressSystemActionUntilNanos = timestamp + gestureConfiguration.systemActionReleaseSuppressionNanos
             }
         }
 
@@ -317,7 +354,8 @@ public struct TouchSurfaceEventMapper {
                 startPoint: point,
                 previousPoint: point,
                 previousTimeNanos: timestamp,
-                didEmitSystemAction: isSystemActionSuppressed(at: timestamp)
+                threeFingerStartContacts: contactMap(from: contacts),
+                threeFingerPreviousContacts: contactMap(from: contacts)
             )
         default:
             return nil
@@ -341,6 +379,38 @@ public struct TouchSurfaceEventMapper {
         return nil
     }
 
+    private func threeFingerContactsMovingFromStart(in state: GestureState, contacts: [TouchContact]) -> [TouchContact] {
+        contacts.filter { contact in
+            guard let startPoint = state.threeFingerStartContacts[contact.id] else {
+                return false
+            }
+
+            return distance(from: startPoint, to: contact.point) > threeFingerContactMovementTolerance
+        }
+    }
+
+    private func threeFingerContactsMovingSincePrevious(in state: GestureState, contacts: [TouchContact]) -> [TouchContact] {
+        contacts.filter { contact in
+            guard let previousPoint = state.threeFingerPreviousContacts[contact.id] else {
+                return false
+            }
+
+            return distance(from: previousPoint, to: contact.point) > scrollMovementTolerance
+        }
+    }
+
+    private func threeFingerStartPoint(in state: GestureState, contacts: [TouchContact]) -> TouchPoint? {
+        let startPoints = contacts.compactMap { state.threeFingerStartContacts[$0.id] }
+        return averagePoint(from: startPoints)
+    }
+
+    private func updateThreeFingerContacts(_ state: inout GestureState, with contacts: [TouchContact]) {
+        for contact in contacts where state.threeFingerStartContacts[contact.id] == nil {
+            state.threeFingerStartContacts[contact.id] = contact.point
+            state.threeFingerPreviousContacts[contact.id] = contact.point
+        }
+    }
+
     private func isSingleFingerTapSuppressed(at timestamp: UInt64) -> Bool {
         guard let suppressSingleFingerTapUntilNanos else {
             return false
@@ -357,14 +427,6 @@ public struct TouchSurfaceEventMapper {
         return timestamp <= suppressTapUntilNanos
     }
 
-    private func isSystemActionSuppressed(at timestamp: UInt64) -> Bool {
-        guard let suppressSystemActionUntilNanos else {
-            return false
-        }
-
-        return timestamp <= suppressSystemActionUntilNanos
-    }
-
     private func isWithinTapDragInterval(_ timestamp: UInt64) -> Bool {
         guard let lastSingleTapEndNanos else {
             return false
@@ -378,18 +440,28 @@ public struct TouchSurfaceEventMapper {
         case 1:
             return contacts[0].point
         case 2:
-            return TouchPoint(
-                x: (contacts[0].point.x + contacts[1].point.x) / 2,
-                y: (contacts[0].point.y + contacts[1].point.y) / 2
-            )
+            return averagePoint(from: contacts.map(\.point))
         case 3:
-            return TouchPoint(
-                x: (contacts[0].point.x + contacts[1].point.x + contacts[2].point.x) / 3,
-                y: (contacts[0].point.y + contacts[1].point.y + contacts[2].point.y) / 3
-            )
+            return averagePoint(from: contacts.map(\.point))
         default:
             return nil
         }
+    }
+
+    private func averagePoint(from points: [TouchPoint]) -> TouchPoint? {
+        guard !points.isEmpty else {
+            return nil
+        }
+
+        let total = points.reduce((x: 0.0, y: 0.0)) { partial, point in
+            (x: partial.x + point.x, y: partial.y + point.y)
+        }
+        let count = Double(points.count)
+        return TouchPoint(x: total.x / count, y: total.y / count)
+    }
+
+    private func contactMap(from contacts: [TouchContact]) -> [Int: TouchPoint] {
+        Dictionary(uniqueKeysWithValues: contacts.map { ($0.id, $0.point) })
     }
 
     private func distance(from start: TouchPoint, to end: TouchPoint) -> Double {
