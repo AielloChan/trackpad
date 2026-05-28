@@ -12,7 +12,8 @@ public final class LanHostServer: @unchecked Sendable {
     private let statusHandler: StatusHandler
     private let logger: any HostLogging
     private let clientLogUploadWriter: ClientLogUploadWriter
-    private let queue = DispatchQueue(label: "trackpad.host.lan-server")
+    private let inputCompactor = RealtimeInputCompactor()
+    private let queue = DispatchQueue(label: "trackpad.host.lan-server", qos: .userInteractive)
 
     private var listener: NWListener?
     private var connections: [UUID: NWConnection] = [:]
@@ -168,7 +169,7 @@ public final class LanHostServer: @unchecked Sendable {
     private func handle(_ data: Data, from id: UUID) -> Bool {
         do {
             var codec = codecs[id] ?? SessionStreamCodec()
-            let messages = try codec.append(data)
+            let messages = inputCompactor.compact(try codec.append(data))
             codecs[id] = codec
 
             for message in messages {

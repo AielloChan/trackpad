@@ -48,10 +48,60 @@ import TrackpadKit
     ])
 }
 
+@Test func sendBufferDropsStaleRealtimeReportsButKeepsBoundaryReports() {
+    var buffer = InputReportSendBuffer(maxPendingReportAgeNanos: 10)
+    let button = InputReport(
+        sequenceNumber: 3,
+        timestampNanos: 105,
+        kind: .pointerButton(button: .left, phase: .down)
+    )
+
+    #expect(buffer.enqueue([inputReport(sequence: 1, dx: 1, dy: 0)]) == [
+        inputReport(sequence: 1, dx: 1, dy: 0),
+    ])
+    #expect(buffer.enqueue([
+        inputReport(sequence: 2, dx: 2, dy: 0),
+        button,
+        inputReport(sequence: 4, timestamp: 120, dx: 4, dy: 0),
+    ]) == nil)
+
+    #expect(buffer.completeCurrentSend(currentTimestampNanos: 120) == [
+        button,
+        inputReport(sequence: 4, timestamp: 120, dx: 4, dy: 0),
+    ])
+}
+
+@Test func sendBufferDropsOldestRealtimeReportsWhenPendingBacklogExceedsLimit() {
+    var buffer = InputReportSendBuffer(maxPendingReportAgeNanos: 1_000, maxPendingReportCount: 2)
+    let button = InputReport(
+        sequenceNumber: 3,
+        timestampNanos: 3,
+        kind: .pointerButton(button: .left, phase: .down)
+    )
+
+    #expect(buffer.enqueue([inputReport(sequence: 1, dx: 1, dy: 0)]) == [
+        inputReport(sequence: 1, dx: 1, dy: 0),
+    ])
+    #expect(buffer.enqueue([
+        inputReport(sequence: 2, dx: 2, dy: 0),
+        button,
+        inputReport(sequence: 4, dx: 4, dy: 0),
+    ]) == nil)
+
+    #expect(buffer.completeCurrentSend(currentTimestampNanos: 4) == [
+        button,
+        inputReport(sequence: 4, dx: 4, dy: 0),
+    ])
+}
+
 private func inputReport(sequence: UInt64, dx: Double, dy: Double) -> InputReport {
+    inputReport(sequence: sequence, timestamp: sequence, dx: dx, dy: dy)
+}
+
+private func inputReport(sequence: UInt64, timestamp: UInt64, dx: Double, dy: Double) -> InputReport {
     InputReport(
         sequenceNumber: sequence,
-        timestampNanos: sequence,
+        timestampNanos: timestamp,
         kind: .pointerMove(dx: dx, dy: dy)
     )
 }

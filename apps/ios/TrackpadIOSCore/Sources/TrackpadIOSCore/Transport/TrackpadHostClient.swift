@@ -12,7 +12,7 @@ public final class TrackpadHostClient: @unchecked Sendable {
     public var logUploadProvider: (@Sendable (HostLogRequest) -> ClientLogUpload?)?
     public var connectionAttemptPlan = TrackpadConnectionAttemptPlan()
 
-    private let queue = DispatchQueue(label: "trackpad.ios.host-client")
+    private let queue = DispatchQueue(label: "trackpad.ios.host-client", qos: .userInteractive)
     private var connection: NWConnection?
     private var receiveCodec = SessionFrameLineCodec()
     private var sendBuffer = InputReportSendBuffer()
@@ -215,7 +215,7 @@ public final class TrackpadHostClient: @unchecked Sendable {
                     return
                 }
 
-                if let nextBatch = self.sendBuffer.completeCurrentSend() {
+                if let nextBatch = self.sendBuffer.completeCurrentSend(currentTimestampNanos: Self.currentTimestampNanos()) {
                     self.sendBufferedReports(nextBatch)
                 }
             }
@@ -482,8 +482,18 @@ private struct PendingLatencyProbe {
 }
 
 struct InputReportSendBuffer {
+    private let maxPendingReportAgeNanos: UInt64
+    private let maxPendingReportCount: Int
     private var isSending = false
     private var pendingReports: [InputReport] = []
+
+    init(
+        maxPendingReportAgeNanos: UInt64 = 50_000_000,
+        maxPendingReportCount: Int = 128
+    ) {
+        self.maxPendingReportAgeNanos = maxPendingReportAgeNanos
+        self.maxPendingReportCount = maxPendingReportCount
+    }
 
     mutating func enqueue(_ reports: [InputReport]) -> [InputReport]? {
         guard !reports.isEmpty else {
@@ -491,19 +501,27 @@ struct InputReportSendBuffer {
         }
 
         appendPending(reports)
+        if let latestTimestamp = reports.map(\.timestampNanos).max() {
+            dropStalePendingReports(currentTimestampNanos: latestTimestamp)
+        }
+        dropExcessPendingReports()
         guard !isSending else {
             return nil
         }
 
-        return drainNextBatch()
+        return drainNextBatch(currentTimestampNanos: reports.map(\.timestampNanos).max())
     }
 
-    mutating func completeCurrentSend() -> [InputReport]? {
+    mutating func completeCurrentSend(currentTimestampNanos: UInt64? = nil) -> [InputReport]? {
         isSending = false
-        return drainNextBatch()
+        return drainNextBatch(currentTimestampNanos: currentTimestampNanos)
     }
 
-    private mutating func drainNextBatch() -> [InputReport]? {
+    private mutating func drainNextBatch(currentTimestampNanos: UInt64?) -> [InputReport]? {
+        if let currentTimestampNanos {
+            dropStalePendingReports(currentTimestampNanos: currentTimestampNanos)
+        }
+        dropExcessPendingReports()
         guard !pendingReports.isEmpty else {
             return nil
         }
@@ -524,9 +542,41 @@ struct InputReportSendBuffer {
             }
         }
     }
+
+    private mutating func dropStalePendingReports(currentTimestampNanos: UInt64) {
+        pendingReports.removeAll { report in
+            guard report.isDroppableRealtimeReport,
+                  currentTimestampNanos > report.timestampNanos else {
+                return false
+            }
+
+            return currentTimestampNanos - report.timestampNanos > maxPendingReportAgeNanos
+        }
+    }
+
+    private mutating func dropExcessPendingReports() {
+        while pendingReports.count > maxPendingReportCount {
+            guard let index = pendingReports.firstIndex(where: \.isDroppableRealtimeReport) else {
+                return
+            }
+
+            pendingReports.remove(at: index)
+        }
+    }
 }
 
 private extension InputReport {
+    var isDroppableRealtimeReport: Bool {
+        switch kind {
+        case .pointerMove:
+            return true
+        case .scroll(_, _, let phase, _):
+            return phase == .changed
+        case .pointerButton, .tap, .systemAction:
+            return false
+        }
+    }
+
     func coalesced(with next: InputReport) -> InputReport? {
         switch (kind, next.kind) {
         case (.pointerMove(let dx, let dy), .pointerMove(let nextDx, let nextDy)):

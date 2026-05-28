@@ -90,6 +90,8 @@ The current Apple-platform app first attempts a short wired-only TCP connection 
 
 High-frequency pointer, button, tap, and scroll input now uses a compact fixed-size binary report inspired by HID reports. Low-frequency session control messages still use JSON Lines so pairing, latency, and diagnostics remain easy to inspect. The macOS host accepts both message families on the same TCP stream after pairing.
 
+Pointer movement and `scroll.changed` reports are treated as realtime, droppable data. The iOS client coalesces pending reports and drops stale realtime reports under send backpressure. The macOS host compacts decoded backlog batches before input injection. Boundary events such as button down/up, tap, system action, `scroll.began`, and `scroll.ended` stay reliable and ordered.
+
 ## Phases
 
 ### Phase 1: LAN MVP

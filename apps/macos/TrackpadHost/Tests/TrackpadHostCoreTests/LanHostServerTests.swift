@@ -5,7 +5,7 @@ import TrackpadKit
 @testable import TrackpadHostCore
 
 @Test func lanHostServerRejectsInvalidPairingBeforeProcessingInput() throws {
-    let port = UInt16.random(in: 45_000...55_000)
+    let port = nextLanHostServerTestPort()
     let performer = LanServerRecordingInputPerformer()
     let processor = HostEventProcessor(performer: performer)
     let statuses = HostStatusRecorder()
@@ -40,7 +40,7 @@ import TrackpadKit
 }
 
 @Test func lanHostServerProcessesInputAfterValidPairingAndClearsPreviousError() throws {
-    let port = UInt16.random(in: 45_000...55_000)
+    let port = nextLanHostServerTestPort()
     let performer = LanServerRecordingInputPerformer()
     let processor = HostEventProcessor(performer: performer)
     let statuses = HostStatusRecorder()
@@ -82,7 +82,7 @@ import TrackpadKit
 }
 
 @Test func lanHostServerProcessesBinaryInputReportAfterValidPairing() throws {
-    let port = UInt16.random(in: 45_000...55_000)
+    let port = nextLanHostServerTestPort()
     let performer = LanServerRecordingInputPerformer()
     let processor = HostEventProcessor(performer: performer)
     let statuses = HostStatusRecorder()
@@ -116,7 +116,7 @@ import TrackpadKit
 }
 
 @Test func lanHostServerRepliesToAuthorizedPingWithPong() throws {
-    let port = UInt16.random(in: 45_000...55_000)
+    let port = nextLanHostServerTestPort()
     let performer = LanServerRecordingInputPerformer()
     let processor = HostEventProcessor(performer: performer)
     let statuses = HostStatusRecorder()
@@ -154,7 +154,7 @@ import TrackpadKit
 }
 
 @Test func lanHostServerRequestsAndPersistsClientLogUpload() throws {
-    let port = UInt16.random(in: 45_000...55_000)
+    let port = nextLanHostServerTestPort()
     let performer = LanServerRecordingInputPerformer()
     let processor = HostEventProcessor(performer: performer)
     let statuses = HostStatusRecorder()
@@ -451,6 +451,30 @@ private extension Data {
         try split(separator: UInt8(ascii: "\n")).map { line in
             try JSONDecoder().decode(SessionFrame.self, from: Data(line))
         }
+    }
+}
+
+private let lanHostServerTestPortAllocator = LanHostServerTestPortAllocator(start: 45_000)
+
+private func nextLanHostServerTestPort() -> UInt16 {
+    lanHostServerTestPortAllocator.next()
+}
+
+private final class LanHostServerTestPortAllocator: @unchecked Sendable {
+    private let lock = NSLock()
+    private var nextPort: UInt16
+
+    init(start: UInt16) {
+        nextPort = start
+    }
+
+    func next() -> UInt16 {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let port = nextPort
+        nextPort += 1
+        return port
     }
 }
 
