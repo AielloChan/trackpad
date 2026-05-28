@@ -424,6 +424,8 @@ private extension Array where Element == InputEvent {
                 return "seq=\(event.sequenceNumber):tap(\(tap.button.rawValue))"
             case .scroll(let scroll):
                 return "seq=\(event.sequenceNumber):scroll(dx=\(String(format: "%.3f", scroll.dx)),dy=\(String(format: "%.3f", scroll.dy)),phase=\(scroll.phase.rawValue),momentum=\(scroll.momentumPhase?.rawValue ?? "none"))"
+            case .systemAction(let systemAction):
+                return "seq=\(event.sequenceNumber):systemAction(\(systemAction.action.rawValue))"
             }
         }
         .joined(separator: "|")

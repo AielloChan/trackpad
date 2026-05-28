@@ -453,6 +453,66 @@ import TrackpadKit
     ])
 }
 
+@Test func threeFingerSwipeUpEmitsMissionControlOnce() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: threeFingerContacts(y: 120))
+
+    currentTime = 100
+    let smallMove = mapper.move(with: threeFingerContacts(y: 95))
+    currentTime = 200
+    let swipe = mapper.move(with: threeFingerContacts(y: 55))
+    currentTime = 300
+    let continuedMove = mapper.move(with: threeFingerContacts(y: 20))
+    currentTime = 400
+    let ended = mapper.end(with: [])
+
+    #expect(smallMove.isEmpty)
+    #expect(swipe == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 200,
+            kind: .systemAction(SystemActionEvent(action: .missionControl))
+        ),
+    ])
+    #expect(continuedMove.isEmpty)
+    #expect(ended.isEmpty)
+}
+
+@Test func threeFingerSwipeDirectionsMapToSystemActions() {
+    #expect(threeFingerSwipeAction(from: TouchPoint(x: 100, y: 100), to: TouchPoint(x: 100, y: 170)) == .appExpose)
+    #expect(threeFingerSwipeAction(from: TouchPoint(x: 100, y: 100), to: TouchPoint(x: 25, y: 100)) == .nextSpace)
+    #expect(threeFingerSwipeAction(from: TouchPoint(x: 100, y: 100), to: TouchPoint(x: 175, y: 100)) == .previousSpace)
+}
+
+@Test func threeFingerSystemActionSuppressesSingleFingerTapImmediatelyAfterRelease() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 100, y: 100)),
+        TouchContact(id: 2, point: TouchPoint(x: 140, y: 100)),
+        TouchContact(id: 3, point: TouchPoint(x: 180, y: 100)),
+    ])
+
+    currentTime = 100_000_000
+    _ = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 30, y: 100)),
+        TouchContact(id: 2, point: TouchPoint(x: 70, y: 100)),
+        TouchContact(id: 3, point: TouchPoint(x: 110, y: 100)),
+    ])
+    currentTime = 200_000_000
+    _ = mapper.end(with: [])
+    currentTime = 230_000_000
+    let suppressedBegin = mapper.begin(with: [
+        TouchContact(id: 4, point: TouchPoint(x: 40, y: 40)),
+    ])
+    currentTime = 250_000_000
+    let suppressedEnd = mapper.end(with: [])
+
+    #expect(suppressedBegin.isEmpty)
+    #expect(suppressedEnd.isEmpty)
+}
+
 @Test func twoFingerScrollSuppressesSingleFingerTapImmediatelyAfterRelease() {
     var currentTime: UInt64 = 0
     var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
@@ -477,6 +537,36 @@ import TrackpadKit
 
     #expect(suppressedBegin.isEmpty)
     #expect(suppressedEnd.isEmpty)
+}
+
+private func threeFingerSwipeAction(from start: TouchPoint, to end: TouchPoint) -> SystemAction? {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: start),
+        TouchContact(id: 2, point: start),
+        TouchContact(id: 3, point: start),
+    ])
+
+    currentTime = 100
+    return mapper.move(with: [
+        TouchContact(id: 1, point: end),
+        TouchContact(id: 2, point: end),
+        TouchContact(id: 3, point: end),
+    ]).compactMap { event in
+        if case .systemAction(let systemAction) = event.kind {
+            return systemAction.action
+        }
+        return nil
+    }.first
+}
+
+private func threeFingerContacts(y: Double) -> [TouchContact] {
+    [
+        TouchContact(id: 1, point: TouchPoint(x: 40, y: y)),
+        TouchContact(id: 2, point: TouchPoint(x: 80, y: y)),
+        TouchContact(id: 3, point: TouchPoint(x: 120, y: y)),
+    ]
 }
 
 @Test func singleFingerTapWorksAfterTwoFingerScrollSuppressionWindow() {

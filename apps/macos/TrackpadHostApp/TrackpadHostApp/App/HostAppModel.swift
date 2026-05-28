@@ -38,7 +38,12 @@ final class HostAppModel: ObservableObject {
 
         logger.info(category: "app", "starting host app server logPath=\(logger.fileURL.path)")
         refreshPairingQRCodePayload()
-        let processor = HostEventProcessor(performer: MacInputInjector(), logger: logger)
+        let processor = HostEventProcessor(
+            performer: MacInputInjector(diagnostics: { [logger] message in
+                logger.info(category: "input", message)
+            }),
+            logger: logger
+        )
         let server = LanHostServer(
             pairingPolicy: PairingPolicy(requiredCode: pairingCode),
             processor: processor,

@@ -75,6 +75,9 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Diagnose two-finger scroll content jumping with targeted `#########` scroll logs.
 - [x] Disable iOS-generated scroll momentum after real-device jumps continued.
 - [x] Fix terminal reverse scroll when iOS reports one remaining touch before a two-finger end.
+- [x] Implement three-finger swipe gestures for Mission Control, App Expose, and Spaces navigation.
+- [x] Fix three-finger Space navigation to target the display under the current pointer instead of the first managed display.
+- [x] Suppress accidental single-finger tap immediately after a three-finger system gesture.
 - [ ] Manually verify two-finger scroll release no longer causes sudden inertial jumps on a real iPad.
 - [ ] Manually verify two-finger scroll release no longer emits a terminal reverse scroll on a real iPad.
 
@@ -93,6 +96,7 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] First-pass input stream optimization avoids one async task per touch-move callback.
 - [x] Real-device gesture polish covers live drag injection and two-finger scroll end handling.
 - [x] Protocol and macOS host still preserve optional momentum semantics for future redesign.
+- [x] Three-finger swipe gestures trigger macOS system navigation actions.
 
 ## Verification Blockers
 
@@ -117,6 +121,7 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [ ] Manually verify whether an iPhone/iPad connected by USB reports the active host connection as wired/cable-like.
 - [x] Inspect reproduced one-finger pointer jump in macOS `#########` host logs.
 - [ ] Manually verify host-triggered client log upload writes an iOS log file on macOS.
+- [ ] Manually verify three-finger swipe up/down/left/right on a real iPhone/iPad.
 
 ## Deferred
 

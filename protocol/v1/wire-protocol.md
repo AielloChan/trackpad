@@ -5,7 +5,7 @@ This document describes the current Trackpad v1 wire protocol used between the m
 The protocol is intentionally split into two message families:
 
 - JSON Lines `SessionFrame` control messages for low-frequency, human-readable session traffic.
-- Fixed-size binary `InputReport` messages for high-frequency pointer, button, tap, and scroll input.
+- Fixed-size binary `InputReport` messages for high-frequency pointer, button, tap, scroll, and system action input.
 
 This is a HID-like application protocol. It borrows the compact report idea from HID, but it is not a USB HID descriptor, Bluetooth HID profile, DriverKit virtual HID device, or OS-level Magic Trackpad clone.
 
@@ -173,7 +173,7 @@ Before encoding, `dx` and `dy` are rounded to the nearest fixed-point value and 
 | `12` | 8 | `UInt64` | timestampNanos | Client event timestamp in nanoseconds. |
 | `20` | 4 | `Int32` | dx | Fixed-point x delta. |
 | `24` | 4 | `Int32` | dy | Fixed-point y delta. |
-| `28` | 1 | `UInt8` | button | Pointer button code or `0`. |
+| `28` | 1 | `UInt8` | button | Pointer button code, system action code, or `0`. |
 | `29` | 1 | `UInt8` | phase | Button phase or scroll phase, depending on kind. |
 | `30` | 1 | `UInt8` | momentumPhase | Scroll momentum phase or `0`. |
 | `31` | 1 | `UInt8` | reserved | Reserved. Current value is `0`. |
@@ -186,6 +186,7 @@ Before encoding, `dx` and `dy` are rounded to the nearest fixed-point value and 
 | `2` | `pointerButton` | `sequenceNumber`, `timestampNanos`, `button`, `phase` |
 | `3` | `tap` | `sequenceNumber`, `timestampNanos`, `button` |
 | `4` | `scroll` | `sequenceNumber`, `timestampNanos`, `dx`, `dy`, `phase`, `momentumPhase` |
+| `5` | `systemAction` | `sequenceNumber`, `timestampNanos`, `button` |
 
 Unknown report kinds are invalid for v1 and should close or reject the stream.
 
@@ -222,6 +223,17 @@ Used by `scroll.phase` and `scroll.momentumPhase`.
 Normal finger scrolling sets `phase` and leaves `momentumPhase = 0`.
 
 Synthetic inertial scrolling sets `momentumPhase` to the matching momentum phase, so the macOS host can inject continuous scroll events with momentum semantics.
+
+### System Actions
+
+Used by `systemAction` in the `button` byte.
+
+| Value | Action |
+| ---: | --- |
+| `1` | `missionControl` |
+| `2` | `appExpose` |
+| `3` | `previousSpace` |
+| `4` | `nextSpace` |
 
 ## Input Semantics
 
@@ -277,6 +289,21 @@ scroll(dx, dy, phase=changed, momentumPhase=changed)
 scroll(0, 0, phase=ended, momentumPhase=ended)
 ```
 
+### `systemAction`
+
+Represents a complete desktop navigation intent, not a raw platform shortcut.
+
+Current iOS gesture mapping:
+
+```text
+three-finger swipe up    -> systemAction(missionControl)
+three-finger swipe down  -> systemAction(appExpose)
+three-finger swipe right -> systemAction(previousSpace)
+three-finger swipe left  -> systemAction(nextSpace)
+```
+
+The macOS host reads the current three-finger trackpad settings before executing these actions. If three-finger vertical or horizontal swipes are disabled, or three-finger drag is enabled, the corresponding remote three-finger system actions are ignored. Mission Control and App Expose use Dock's Mission Control notification entry point on macOS so they do not depend on the user's keyboard shortcut settings. Space navigation uses the current display's managed Spaces API and falls back to Control-Left or Control-Right if that API is unavailable.
+
 ## Coalescing Rules
 
 The client may coalesce pending reports while a previous send operation is in flight.
@@ -296,6 +323,7 @@ Not allowed:
 
 - Do not coalesce across `pointerButton`.
 - Do not coalesce across `tap`.
+- Do not coalesce across `systemAction`.
 - Do not coalesce across scroll `began` or `ended`.
 - Do not merge finger scroll and momentum scroll reports with different `momentumPhase`.
 
@@ -309,7 +337,7 @@ The receiver should treat these as protocol errors:
 - Magic byte is invalid for a binary report.
 - Binary report version is unsupported.
 - Binary report kind is unknown.
-- Button, button phase, or scroll phase value is unsupported.
+- Button, button phase, scroll phase, or system action value is unsupported.
 - JSON control line cannot be decoded as a supported `SessionFrame`.
 - Input, ping, or diagnostic upload is received before a valid `clientHello`.
 

@@ -22,6 +22,7 @@ public enum InputEventKind: Codable, Equatable, Sendable {
     case pointerButton(PointerButtonEvent)
     case tap(TapEvent)
     case scroll(ScrollEvent)
+    case systemAction(SystemActionEvent)
 }
 
 public struct PointerMoveEvent: Codable, Equatable, Sendable {
@@ -64,6 +65,21 @@ public struct ScrollEvent: Codable, Equatable, Sendable {
         self.phase = phase
         self.momentumPhase = momentumPhase
     }
+}
+
+public struct SystemActionEvent: Codable, Equatable, Sendable {
+    public let action: SystemAction
+
+    public init(action: SystemAction) {
+        self.action = action
+    }
+}
+
+public enum SystemAction: String, Codable, Equatable, Sendable {
+    case missionControl
+    case appExpose
+    case previousSpace
+    case nextSpace
 }
 
 public enum PointerButton: String, Codable, Equatable, Sendable {

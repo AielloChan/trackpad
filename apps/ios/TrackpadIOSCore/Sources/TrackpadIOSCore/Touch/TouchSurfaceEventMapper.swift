@@ -48,6 +48,7 @@ public struct TouchSurfaceEventMapper {
     private enum GestureKind {
         case singleFinger
         case twoFinger
+        case threeFingerSwipe
     }
 
     private struct GestureState {
@@ -62,6 +63,7 @@ public struct TouchSurfaceEventMapper {
         var hasProcessedSingleFingerMove = false
         var suppressSingleFingerTap = false
         var didScroll = false
+        var didEmitSystemAction = false
     }
 
     private var gestureState: GestureState?
@@ -74,6 +76,8 @@ public struct TouchSurfaceEventMapper {
     private let firstPointerMoveRebaseTolerance: Double = 3
     private let tapDragFirstMoveRebaseTolerance: Double = 8
     private let scrollMovementTolerance: Double = 0.5
+    private let threeFingerSwipeThreshold: Double = 52
+    private let threeFingerSwipeAxisDominance: Double = 1.35
 
     public init(
         timestampProvider: @escaping () -> UInt64 = TouchSurfaceEventMapper.defaultTimestampNanos,
@@ -103,6 +107,9 @@ public struct TouchSurfaceEventMapper {
             return []
         }
         if state.kind == .twoFinger && contacts.count < 2 {
+            return []
+        }
+        if state.kind == .threeFingerSwipe && contacts.count != 3 {
             return []
         }
         guard let currentPoint = trackedPoint(for: contacts) else {
@@ -163,6 +170,18 @@ public struct TouchSurfaceEventMapper {
                 timestampNanos: timestamp,
                 kind: .scroll(ScrollEvent(dx: dx, dy: dy, phase: phase))
             ))
+        case .threeFingerSwipe:
+            guard !state.didEmitSystemAction,
+                  let action = threeFingerSwipeAction(from: state.startPoint, to: currentPoint) else {
+                gestureState = state
+                return []
+            }
+
+            state.didEmitSystemAction = true
+            events.append(makeEvent(
+                timestampNanos: timestamp,
+                kind: .systemAction(SystemActionEvent(action: action))
+            ))
         }
 
         gestureState = state
@@ -181,6 +200,8 @@ public struct TouchSurfaceEventMapper {
             shouldEndGesture = contacts.isEmpty
         case .twoFinger:
             shouldEndGesture = contacts.count < 2
+        case .threeFingerSwipe:
+            shouldEndGesture = contacts.count < 3
         }
 
         guard shouldEndGesture else {
@@ -225,6 +246,11 @@ public struct TouchSurfaceEventMapper {
                     timestampNanos: timestamp,
                     kind: .tap(TapEvent(button: .right))
                 ))
+            }
+        case .threeFingerSwipe:
+            lastSingleTapEndNanos = nil
+            if state.didEmitSystemAction {
+                suppressSingleFingerTapUntilNanos = timestamp + gestureConfiguration.scrollReleaseTapSuppressionNanos
             }
         }
 
@@ -276,9 +302,34 @@ public struct TouchSurfaceEventMapper {
                 previousPoint: point,
                 previousTimeNanos: timestamp
             )
+        case 3:
+            return GestureState(
+                kind: .threeFingerSwipe,
+                startTimeNanos: timestamp,
+                startPoint: point,
+                previousPoint: point,
+                previousTimeNanos: timestamp
+            )
         default:
             return nil
         }
+    }
+
+    private func threeFingerSwipeAction(from start: TouchPoint, to current: TouchPoint) -> SystemAction? {
+        let dx = current.x - start.x
+        let dy = current.y - start.y
+        let absX = abs(dx)
+        let absY = abs(dy)
+
+        if absY >= threeFingerSwipeThreshold && absY >= absX * threeFingerSwipeAxisDominance {
+            return dy < 0 ? .missionControl : .appExpose
+        }
+
+        if absX >= threeFingerSwipeThreshold && absX >= absY * threeFingerSwipeAxisDominance {
+            return dx < 0 ? .nextSpace : .previousSpace
+        }
+
+        return nil
     }
 
     private func isSingleFingerTapSuppressed(at timestamp: UInt64) -> Bool {
@@ -305,6 +356,11 @@ public struct TouchSurfaceEventMapper {
             return TouchPoint(
                 x: (contacts[0].point.x + contacts[1].point.x) / 2,
                 y: (contacts[0].point.y + contacts[1].point.y) / 2
+            )
+        case 3:
+            return TouchPoint(
+                x: (contacts[0].point.x + contacts[1].point.x + contacts[2].point.x) / 3,
+                y: (contacts[0].point.y + contacts[1].point.y + contacts[2].point.y) / 3
             )
         default:
             return nil

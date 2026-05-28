@@ -57,6 +57,16 @@ public enum InputReportBinaryCodec {
             data.append(phase.reportRawValue)
             data.append(momentumPhase?.reportRawValue ?? 0)
             data.append(0)
+        case .systemAction(let action):
+            data.append(5)
+            data.append(0)
+            appendCommonFields(report, to: &data)
+            appendFixedPoint(0, to: &data)
+            appendFixedPoint(0, to: &data)
+            data.append(action.reportRawValue)
+            data.append(0)
+            data.append(0)
+            data.append(0)
         }
 
         return data
@@ -115,6 +125,12 @@ public enum InputReportBinaryCodec {
                     momentumPhase: try ScrollPhase(optionalReportRawValue: momentumRaw)
                 )
             )
+        case 5:
+            return InputReport(
+                sequenceNumber: sequenceNumber,
+                timestampNanos: timestampNanos,
+                kind: .systemAction(action: try SystemAction(reportRawValue: buttonRaw))
+            )
         default:
             throw InputReportBinaryCodecError.unsupportedKind(data[2])
         }
@@ -167,6 +183,7 @@ public enum InputReportBinaryCodecError: Error, Equatable {
     case unsupportedButton(UInt8)
     case unsupportedButtonPhase(UInt8)
     case unsupportedScrollPhase(UInt8)
+    case unsupportedSystemAction(UInt8)
 }
 
 private extension PointerButton {
@@ -230,6 +247,27 @@ private extension ScrollPhase {
         case 2: self = .changed
         case 3: self = .ended
         default: throw InputReportBinaryCodecError.unsupportedScrollPhase(optionalReportRawValue)
+        }
+    }
+}
+
+private extension SystemAction {
+    var reportRawValue: UInt8 {
+        switch self {
+        case .missionControl: return 1
+        case .appExpose: return 2
+        case .previousSpace: return 3
+        case .nextSpace: return 4
+        }
+    }
+
+    init(reportRawValue: UInt8) throws {
+        switch reportRawValue {
+        case 1: self = .missionControl
+        case 2: self = .appExpose
+        case 3: self = .previousSpace
+        case 4: self = .nextSpace
+        default: throw InputReportBinaryCodecError.unsupportedSystemAction(reportRawValue)
         }
     }
 }

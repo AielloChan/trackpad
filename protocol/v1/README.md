@@ -10,7 +10,7 @@ The first version should define semantic input events rather than raw platform-s
 - `pointer.button`
 - `pointer.tap`
 - `scroll`
-- `gesture`
+- `systemAction`
 - `capabilities`
 - `session`
 - `session.ping`
@@ -24,6 +24,8 @@ The first version should define semantic input events rather than raw platform-s
 
 `scroll` events carry `dx`, `dy`, a required finger-scroll `phase`, and an optional `momentumPhase`. Normal finger movement leaves `momentumPhase` empty. Synthetic inertial scrolling sets it so host platforms can inject trackpad-like momentum events instead of plain mouse-wheel deltas.
 
+`systemAction` events carry semantic desktop actions such as Mission Control, App Expose, previous Space, and next Space. Clients should send the semantic action rather than a macOS-specific keyboard shortcut so other host platforms can map the same intent to their own system APIs.
+
 High-frequency input is carried as a fixed 32-byte binary `InputReport` frame:
 
 ```text
@@ -35,7 +37,7 @@ bytes 4-11  sequence number
 bytes 12-19 timestamp nanos
 bytes 20-23 dx fixed-point value
 bytes 24-27 dy fixed-point value
-byte 28     button
+byte 28     button / system action
 byte 29     phase
 byte 30     momentum phase
 byte 31     reserved

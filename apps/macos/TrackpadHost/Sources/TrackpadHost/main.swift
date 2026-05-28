@@ -6,9 +6,11 @@ import TrackpadKit
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 let command = arguments.first
-let injector = MacInputInjector()
 let defaultDevelopmentPairingCode = PairingCode("123456")
 let logger = FileHostLogger()
+let injector = MacInputInjector(diagnostics: { message in
+    logger.info(category: "input", message)
+})
 
 func logLine(_ message: String) {
     print(message)

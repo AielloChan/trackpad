@@ -53,6 +53,8 @@ private extension InputEvent {
             return "kind=tap button=\(tap.button.rawValue)"
         case .scroll(let scroll):
             return "kind=scroll dx=\(scroll.dx) dy=\(scroll.dy) phase=\(scroll.phase.rawValue) momentum=\(scroll.momentumPhase?.rawValue ?? "none")"
+        case .systemAction(let systemAction):
+            return "kind=systemAction action=\(systemAction.action.rawValue)"
         }
     }
 }
@@ -76,6 +78,8 @@ private extension MacInputCommand {
             return "button button=\(button.rawValue) phase=\(phase.rawValue) clickCount=\(clickCount)"
         case .scroll(let dx, let dy, let phase, let momentumPhase):
             return "scroll dx=\(dx) dy=\(dy) phase=\(phase.rawValue) momentum=\(momentumPhase?.rawValue ?? "none")"
+        case .systemAction(let action):
+            return "systemAction action=\(action.rawValue)"
         }
     }
 }

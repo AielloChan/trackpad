@@ -71,3 +71,16 @@ import Testing
     #expect(decoded == ScrollEvent(dx: 0, dy: -8, phase: .changed))
     #expect(decoded.momentumPhase == nil)
 }
+
+@Test func systemActionEventRoundTripsThroughJSON() throws {
+    let event = InputEvent(
+        sequenceNumber: 46,
+        timestampNanos: 1_000_004,
+        kind: .systemAction(SystemActionEvent(action: .missionControl))
+    )
+
+    let data = try JSONEncoder().encode(event)
+    let decoded = try JSONDecoder().decode(InputEvent.self, from: data)
+
+    #expect(decoded == event)
+}

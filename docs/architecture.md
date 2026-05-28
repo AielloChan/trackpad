@@ -52,7 +52,7 @@ The macOS host is the first implementation priority because input injection and 
 
 Shared Swift package responsibilities:
 
-- Protocol models.
+- Protocol models, including pointer, scroll, tap, and semantic system action events.
 - Session state.
 - Transport interfaces.
 - Discovery interfaces.
@@ -69,6 +69,7 @@ Version 1 should start with a minimal event model:
 - Pointer button up/down.
 - Tap with button intent.
 - Scroll with `dx`, `dy`, and phase.
+- System actions such as Mission Control, App Expose, and Spaces navigation.
 - Capability negotiation.
 - Sequence number and timestamp.
 

@@ -11,9 +11,14 @@ public struct MacInputMapper: Sendable {
     private var pressedButtons: Set<PointerButton> = []
     private var lastTap: LastTap?
     private let doubleClickIntervalNanos: UInt64
+    private let systemGestureSettings: MacSystemGestureSettings
 
-    public init(doubleClickIntervalSeconds: TimeInterval = NSEvent.doubleClickInterval) {
+    public init(
+        doubleClickIntervalSeconds: TimeInterval = NSEvent.doubleClickInterval,
+        systemGestureSettings: MacSystemGestureSettings = .current()
+    ) {
         self.doubleClickIntervalNanos = UInt64((max(doubleClickIntervalSeconds, 0) * 1_000_000_000).rounded())
+        self.systemGestureSettings = systemGestureSettings
     }
 
     public mutating func commands(for event: InputEvent) -> [MacInputCommand] {
@@ -38,6 +43,12 @@ public struct MacInputMapper: Sendable {
         case .scroll(let scroll):
             lastTap = nil
             return [.scroll(dx: scroll.dx, dy: scroll.dy, phase: scroll.phase, momentumPhase: scroll.momentumPhase)]
+        case .systemAction(let systemAction):
+            lastTap = nil
+            guard systemGestureSettings.allowsThreeFingerSystemAction(systemAction.action) else {
+                return []
+            }
+            return [.systemAction(systemAction.action)]
         }
     }
 

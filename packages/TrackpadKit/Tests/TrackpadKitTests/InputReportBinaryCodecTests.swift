@@ -30,6 +30,18 @@ import Testing
     #expect(decoded.inputEvent == event)
 }
 
+@Test func systemActionReportPreservesAction() throws {
+    let event = InputEvent(
+        sequenceNumber: 10,
+        timestampNanos: 1_300,
+        kind: .systemAction(SystemActionEvent(action: .nextSpace))
+    )
+
+    let decoded = try InputReportBinaryCodec.decode(InputReportBinaryCodec.encode(try InputReport(event: event)))
+
+    #expect(decoded.inputEvent == event)
+}
+
 @Test func mixedSessionStreamDecodesJsonControlFramesAndBinaryInputReports() throws {
     let hello = SessionFrame.clientHello(
         ClientHello(

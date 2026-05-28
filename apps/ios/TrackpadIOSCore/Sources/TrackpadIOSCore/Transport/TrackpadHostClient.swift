@@ -371,6 +371,8 @@ private extension Array where Element == InputReport {
                 return "seq=\(report.sequenceNumber):tap(\(button.rawValue))"
             case .scroll(let dx, let dy, let phase, let momentumPhase):
                 return "seq=\(report.sequenceNumber):scroll(dx=\(String(format: "%.3f", dx)),dy=\(String(format: "%.3f", dy)),phase=\(phase.rawValue),momentum=\(momentumPhase?.rawValue ?? "none"))"
+            case .systemAction(let action):
+                return "seq=\(report.sequenceNumber):systemAction(\(action.rawValue))"
             }
         }
         .joined(separator: "|")

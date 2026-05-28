@@ -21,7 +21,8 @@ La phase 1 est utilisable pour des tests en reseau local :
 - Tap a un doigt pour le clic gauche.
 - Tap, second appui rapide, puis mouvement pour le glisser.
 - Tap a deux doigts pour le clic droit.
-- Defilement a deux doigts avec premiere version de l'inertie.
+- Defilement a deux doigts sans inertie generee cote client.
+- Balayage a trois doigts haut/bas/gauche/droite pour Mission Control, App Expose et la navigation entre Spaces.
 - Affichage cote client de la latence, du taux d'echantillonnage tactile et du taux d'evenements envoyes.
 - Curseurs de reglage pour la vitesse du pointeur, l'inertie du defilement et les delais des gestes.
 - Injection cote macOS pour mouvement, clic, glisser, phases de defilement, phases d'inertie et etat de double-clic.

@@ -99,6 +99,64 @@ import TrackpadKit
     ])
 }
 
+@Test func systemActionMapsToSystemActionCommand() {
+    var mapper = MacInputMapper(systemGestureSettings: .allThreeFingerSwipesEnabled)
+    let event = InputEvent(
+        sequenceNumber: 8,
+        timestampNanos: 17,
+        kind: .systemAction(SystemActionEvent(action: .nextSpace))
+    )
+
+    #expect(mapper.commands(for: event) == [
+        .systemAction(.nextSpace),
+    ])
+}
+
+@Test func systemActionHonorsDisabledThreeFingerVerticalSwipeSetting() {
+    var mapper = MacInputMapper(systemGestureSettings: MacSystemGestureSettings(
+        threeFingerVerticalSwipeEnabled: false,
+        threeFingerHorizontalSwipeEnabled: true,
+        threeFingerDragEnabled: false
+    ))
+    let event = InputEvent(
+        sequenceNumber: 9,
+        timestampNanos: 18,
+        kind: .systemAction(SystemActionEvent(action: .missionControl))
+    )
+
+    #expect(mapper.commands(for: event).isEmpty)
+}
+
+@Test func systemActionHonorsDisabledThreeFingerHorizontalSwipeSetting() {
+    var mapper = MacInputMapper(systemGestureSettings: MacSystemGestureSettings(
+        threeFingerVerticalSwipeEnabled: true,
+        threeFingerHorizontalSwipeEnabled: false,
+        threeFingerDragEnabled: false
+    ))
+    let event = InputEvent(
+        sequenceNumber: 10,
+        timestampNanos: 19,
+        kind: .systemAction(SystemActionEvent(action: .nextSpace))
+    )
+
+    #expect(mapper.commands(for: event).isEmpty)
+}
+
+@Test func systemActionIsIgnoredWhenThreeFingerDragIsEnabled() {
+    var mapper = MacInputMapper(systemGestureSettings: MacSystemGestureSettings(
+        threeFingerVerticalSwipeEnabled: true,
+        threeFingerHorizontalSwipeEnabled: true,
+        threeFingerDragEnabled: true
+    ))
+    let event = InputEvent(
+        sequenceNumber: 11,
+        timestampNanos: 20,
+        kind: .systemAction(SystemActionEvent(action: .appExpose))
+    )
+
+    #expect(mapper.commands(for: event).isEmpty)
+}
+
 @Test func pointerMoveWhileLeftButtonIsDownMapsToDragCommand() {
     var mapper = MacInputMapper()
 

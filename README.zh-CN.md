@@ -21,7 +21,8 @@ git@github.com:AielloChan/trackpad.git
 - 单指轻点左键点击。
 - 轻点、快速二次按下并移动触发拖拽。
 - 双指轻点右键点击。
-- 双指滚动和初版惯性滚动。
+- 双指滚动，不再由客户端生成惯性滚动。
+- 三指上/下/左/右滑动触发 Mission Control、App Expose 和 Spaces 切换。
 - 客户端展示延迟、触控采样率和发送事件率。
 - 连接状态栏提供光标速度、滚动惯性和手势时序滑块。
 - macOS host 支持移动、点击、拖拽、滚动 phase、momentum phase 和双击 click state 注入。

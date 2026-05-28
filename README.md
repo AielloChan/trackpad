@@ -27,6 +27,7 @@ Phase 1 is functionally usable for local LAN testing:
 - Tap, quick second press, and movement for drag.
 - Two-finger tap for right click.
 - Two-finger scroll without client-generated inertial momentum.
+- Three-finger swipe up/down/left/right for Mission Control, App Expose, and Spaces navigation, gated by the host Mac's current three-finger trackpad settings.
 - Client-side latency, touch sample rate, and sent event rate display.
 - Active connection path display for Wi-Fi, cellular, wired/cable-like, and constrained paths.
 - Initial wired-only TCP connection attempt before default TCP fallback when the system exposes a cable-like path.
