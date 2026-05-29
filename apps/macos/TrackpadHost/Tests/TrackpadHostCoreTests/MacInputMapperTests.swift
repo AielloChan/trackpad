@@ -184,6 +184,40 @@ import TrackpadKit
     #expect(mapper.commands(for: event).isEmpty)
 }
 
+@Test func notificationCenterSystemActionIgnoresThreeFingerGestureSettings() {
+    var mapper = MacInputMapper(systemGestureSettings: MacSystemGestureSettings(
+        threeFingerVerticalSwipeEnabled: false,
+        threeFingerHorizontalSwipeEnabled: false,
+        threeFingerDragEnabled: true
+    ))
+    let event = InputEvent(
+        sequenceNumber: 12,
+        timestampNanos: 21,
+        kind: .systemAction(SystemActionEvent(action: .showNotificationCenter))
+    )
+
+    #expect(mapper.commands(for: event) == [
+        .systemAction(.showNotificationCenter),
+    ])
+}
+
+@Test func hideNotificationCenterSystemActionIgnoresThreeFingerGestureSettings() {
+    var mapper = MacInputMapper(systemGestureSettings: MacSystemGestureSettings(
+        threeFingerVerticalSwipeEnabled: false,
+        threeFingerHorizontalSwipeEnabled: false,
+        threeFingerDragEnabled: true
+    ))
+    let event = InputEvent(
+        sequenceNumber: 13,
+        timestampNanos: 22,
+        kind: .systemAction(SystemActionEvent(action: .hideNotificationCenter))
+    )
+
+    #expect(mapper.commands(for: event) == [
+        .systemAction(.hideNotificationCenter),
+    ])
+}
+
 @Test func pointerMoveWhileLeftButtonIsDownMapsToDragCommand() {
     var mapper = MacInputMapper()
 

@@ -282,6 +282,8 @@ private extension SystemAction {
         case .appExpose: return 2
         case .previousSpace: return 3
         case .nextSpace: return 4
+        case .showNotificationCenter: return 5
+        case .hideNotificationCenter: return 6
         }
     }
 
@@ -291,6 +293,8 @@ private extension SystemAction {
         case 2: self = .appExpose
         case 3: self = .previousSpace
         case 4: self = .nextSpace
+        case 5: self = .showNotificationCenter
+        case 6: self = .hideNotificationCenter
         default: throw InputReportBinaryCodecError.unsupportedSystemAction(reportRawValue)
         }
     }

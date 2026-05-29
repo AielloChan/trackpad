@@ -297,6 +297,8 @@ Used by `systemAction` in the `button` byte.
 | `2` | `appExpose` |
 | `3` | `previousSpace` |
 | `4` | `nextSpace` |
+| `5` | `showNotificationCenter` |
+| `6` | `hideNotificationCenter` |
 
 ### Contact Phases
 
@@ -373,9 +375,15 @@ three-finger swipe up    -> systemAction(missionControl)
 three-finger swipe down  -> systemAction(appExpose)
 three-finger swipe right -> systemAction(previousSpace)
 three-finger swipe left  -> systemAction(nextSpace)
+right-edge inward swipe with two contacts before release -> systemAction(showNotificationCenter)
+two-finger right swipe after Notification Center was opened by this client -> systemAction(hideNotificationCenter)
 ```
 
 The macOS host reads the current three-finger trackpad settings before executing these actions. If three-finger vertical or horizontal swipes are disabled, or three-finger drag is enabled, the corresponding remote three-finger system actions are ignored. Mission Control and App Expose use Dock's Mission Control notification entry point on macOS so they do not depend on the user's keyboard shortcut settings. Space navigation is intentionally mapped to the same keyboard shortcut path as `Control-Left` and `Control-Right`.
+
+`showNotificationCenter` follows the macOS trackpad gesture shape: begin at the right edge and swipe inward. On the iOS surface, recognition starts when any contact in the current touch session begins within the right-edge inset. The action is emitted only if that edge contact crosses the inward movement threshold and two contacts are present at some point before all contacts lift. The macOS host executes this action independently of three-finger trackpad settings.
+
+`hideNotificationCenter` is emitted only from the client-side Notification Center context after this client opened Notification Center. This keeps the close gesture from conflicting with ordinary two-finger horizontal scroll in other apps.
 
 ### `contact`
 

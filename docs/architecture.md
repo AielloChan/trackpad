@@ -69,7 +69,7 @@ Version 1 should start with a minimal event model:
 - Pointer button up/down.
 - Tap with button intent.
 - Scroll with `dx`, `dy`, and phase.
-- System actions such as Mission Control, App Expose, and Spaces navigation.
+- System actions such as Mission Control, App Expose, Spaces navigation, and Notification Center.
 - Capability negotiation.
 - Sequence number and timestamp.
 

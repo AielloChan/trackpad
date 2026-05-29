@@ -107,6 +107,10 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Prevent send-buffer coalescing from merging the limited drag startup moves into a larger first drag report.
 - [x] Reduce normal single-finger pointer startup dead zone by sending limited first movement immediately.
 - [x] Prevent pointer startup movement from being amplified by pointer speed tuning or send-buffer coalescing.
+- [x] Add right-edge inward gesture to open macOS Notification Center.
+- [x] Document canonical gesture names and current support states.
+- [x] Allow any touch in the current session to be the Notification Center right-edge candidate.
+- [x] Add scoped two-finger right swipe to close Notification Center after opening it from the client.
 - [ ] Manually verify two-finger scroll release no longer causes sudden inertial jumps on a real iPad.
 - [ ] Manually verify two-finger scroll release no longer emits a terminal reverse scroll on a real iPad.
 
@@ -161,6 +165,8 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [ ] Manually compare the longer host-side inertial scroll distance against a native Apple trackpad.
 - [ ] Manually verify inertial scroll tail smoothness on a 60 Hz and a 120 Hz display.
 - [ ] Manually verify reconnecting a known real iPhone/iPad skips the current pairing code.
+- [ ] Manually verify right-edge inward two-contact gesture opens Notification Center on macOS.
+- [ ] Manually verify two-finger right swipe closes Notification Center only after the client opened it.
 
 ## Deferred
 

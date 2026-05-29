@@ -119,7 +119,18 @@ public struct MacInputInjector: Sendable {
             postSpaceShortcut(action)
         case .nextSpace:
             postSpaceShortcut(action)
+        case .showNotificationCenter, .hideNotificationCenter:
+            postNotificationCenter(action)
         }
+    }
+
+    private func postNotificationCenter(_ action: SystemAction) {
+        if postNotificationCenterWithSystemEvents() {
+            logger.info(category: "input", "systemEvents posted action=\(action.rawValue)")
+            return
+        }
+
+        logger.warning(category: "input", "systemEvents failed action=\(action.rawValue)")
     }
 
     private func postSpaceShortcut(_ action: SystemAction) {
@@ -151,6 +162,56 @@ public struct MacInputInjector: Sendable {
         }
 
         return true
+    }
+
+    private func postNotificationCenterWithSystemEvents() -> Bool {
+        let source = """
+        tell application "System Events"
+            set didClick to false
+            if exists application process "ControlCenter" then
+                tell application process "ControlCenter"
+                    try
+                        click menu bar item "Clock" of menu bar 1
+                        set didClick to true
+                    end try
+                    if didClick is false then
+                        try
+                            click menu bar item "Notification Center" of menu bar 1
+                            set didClick to true
+                        end try
+                    end if
+                    if didClick is false then
+                        click menu bar item 1 of menu bar 1
+                        set didClick to true
+                    end if
+                end tell
+            end if
+            if didClick is false and exists application process "SystemUIServer" then
+                tell application process "SystemUIServer"
+                    if exists menu bar item "Notification Center" of menu bar 1 then
+                        click menu bar item "Notification Center" of menu bar 1
+                    else
+                        click menu bar item 1 of menu bar 1
+                    end if
+                    set didClick to true
+                end tell
+            end if
+            return didClick
+        end tell
+        """
+        var error: NSDictionary?
+        guard let script = NSAppleScript(source: source) else {
+            logger.error(category: "input", "systemEvents scriptCreateFailed action=showNotificationCenter")
+            return false
+        }
+
+        let result = script.executeAndReturnError(&error)
+        if let error {
+            logger.error(category: "input", "systemEvents error action=showNotificationCenter error=\(error)")
+            return false
+        }
+
+        return result.booleanValue
     }
 
     private func postExposeNotification(named name: String) {
@@ -218,6 +279,10 @@ private extension SystemAction {
             return 123
         case .nextSpace:
             return 124
+        case .showNotificationCenter:
+            return 0
+        case .hideNotificationCenter:
+            return 0
         }
     }
 

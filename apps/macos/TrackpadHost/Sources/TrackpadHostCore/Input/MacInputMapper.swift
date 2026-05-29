@@ -45,7 +45,7 @@ public struct MacInputMapper: Sendable {
             return [.scroll(dx: scroll.dx, dy: scroll.dy, phase: scroll.phase, momentumPhase: scroll.momentumPhase)]
         case .systemAction(let systemAction):
             lastTap = nil
-            guard systemGestureSettings.allowsThreeFingerSystemAction(systemAction.action) else {
+            guard systemGestureSettings.allowsSystemAction(systemAction.action) else {
                 return []
             }
             return [.systemAction(systemAction.action)]

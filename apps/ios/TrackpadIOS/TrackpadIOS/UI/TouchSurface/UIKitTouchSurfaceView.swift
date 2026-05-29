@@ -77,7 +77,8 @@ final class UIKitTouchSurfaceView: UIView {
         let point = touch.preciseLocation(in: self)
         return TouchContact(
             id: id,
-            point: TouchPoint(x: point.x, y: point.y)
+            point: TouchPoint(x: point.x, y: point.y),
+            surfaceWidth: bounds.width
         )
     }
 

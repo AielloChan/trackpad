@@ -652,6 +652,179 @@ import TrackpadKit
     #expect(threeFingerSwipeAction(from: TouchPoint(x: 100, y: 100), to: TouchPoint(x: 175, y: 100)) == .previousSpace)
 }
 
+@Test func rightEdgeInwardSwipeWithSecondContactEmitsNotificationCenter() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 389, y: 120), surfaceWidth: 400),
+    ])
+
+    currentTime = 100
+    let oneFingerCandidateMove = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 355, y: 120), surfaceWidth: 400),
+    ])
+    currentTime = 200
+    let confirmedSwipe = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 330, y: 120), surfaceWidth: 400),
+        TouchContact(id: 2, point: TouchPoint(x: 350, y: 120), surfaceWidth: 400),
+    ])
+    currentTime = 300
+    let repeatedMove = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 300, y: 120), surfaceWidth: 400),
+        TouchContact(id: 2, point: TouchPoint(x: 320, y: 120), surfaceWidth: 400),
+    ])
+
+    #expect(oneFingerCandidateMove.isEmpty)
+    #expect(confirmedSwipe == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 200,
+            kind: .systemAction(SystemActionEvent(action: .showNotificationCenter))
+        ),
+    ])
+    #expect(repeatedMove.isEmpty)
+}
+
+@Test func rightEdgeInwardSwipeCanBeConfirmedWhenSecondContactBegins() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 389, y: 120), surfaceWidth: 400),
+    ])
+
+    currentTime = 100
+    let oneFingerCandidateMove = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 315, y: 120), surfaceWidth: 400),
+    ])
+    currentTime = 200
+    let secondContactBegan = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 315, y: 120), surfaceWidth: 400),
+        TouchContact(id: 2, point: TouchPoint(x: 325, y: 120), surfaceWidth: 400),
+    ])
+
+    #expect(oneFingerCandidateMove.isEmpty)
+    #expect(secondContactBegan == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 200,
+            kind: .systemAction(SystemActionEvent(action: .showNotificationCenter))
+        ),
+    ])
+}
+
+@Test func rightEdgeInwardSwipeAllowsSecondContactToStartAtEdge() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 240, y: 120), surfaceWidth: 400),
+    ])
+
+    currentTime = 100
+    let secondContactBegan = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 240, y: 120), surfaceWidth: 400),
+        TouchContact(id: 2, point: TouchPoint(x: 389, y: 120), surfaceWidth: 400),
+    ])
+    currentTime = 200
+    let secondContactEdgeSwipe = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 240, y: 120), surfaceWidth: 400),
+        TouchContact(id: 2, point: TouchPoint(x: 330, y: 120), surfaceWidth: 400),
+    ])
+
+    #expect(secondContactBegan.isEmpty)
+    #expect(secondContactEdgeSwipe == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 200,
+            kind: .systemAction(SystemActionEvent(action: .showNotificationCenter))
+        ),
+    ])
+}
+
+@Test func rightEdgeInwardSwipeRequiresAnEdgeContact() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 300, y: 120), surfaceWidth: 400),
+    ])
+
+    currentTime = 100
+    let events = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 220, y: 120), surfaceWidth: 400),
+        TouchContact(id: 2, point: TouchPoint(x: 240, y: 120), surfaceWidth: 400),
+    ])
+
+    #expect(!events.containsSystemAction(.showNotificationCenter))
+}
+
+@Test func rightEdgeInwardSwipeRequiresSecondContactBeforeLift() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 389, y: 120), surfaceWidth: 400),
+    ])
+
+    currentTime = 100
+    let move = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 320, y: 120), surfaceWidth: 400),
+    ])
+    currentTime = 200
+    let ended = mapper.end(with: [])
+
+    #expect(move.isEmpty)
+    #expect(ended.isEmpty)
+}
+
+@Test func notificationCenterCloseSwipeRequiresPriorOpenGesture() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 120, y: 120), surfaceWidth: 400),
+        TouchContact(id: 2, point: TouchPoint(x: 160, y: 120), surfaceWidth: 400),
+    ])
+
+    currentTime = 100
+    let ordinaryRightSwipe = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 190, y: 120), surfaceWidth: 400),
+        TouchContact(id: 2, point: TouchPoint(x: 230, y: 120), surfaceWidth: 400),
+    ])
+
+    #expect(!ordinaryRightSwipe.containsSystemAction(.hideNotificationCenter))
+}
+
+@Test func notificationCenterCloseSwipeEmitsAfterOpenGestureAndFullLift() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 389, y: 120), surfaceWidth: 400),
+    ])
+    currentTime = 100
+    _ = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 330, y: 120), surfaceWidth: 400),
+        TouchContact(id: 2, point: TouchPoint(x: 350, y: 120), surfaceWidth: 400),
+    ])
+    currentTime = 200
+    _ = mapper.end(with: [])
+
+    currentTime = 300
+    _ = mapper.begin(with: [
+        TouchContact(id: 3, point: TouchPoint(x: 110, y: 120), surfaceWidth: 400),
+        TouchContact(id: 4, point: TouchPoint(x: 150, y: 120), surfaceWidth: 400),
+    ])
+    currentTime = 400
+    let closeSwipe = mapper.move(with: [
+        TouchContact(id: 3, point: TouchPoint(x: 180, y: 120), surfaceWidth: 400),
+        TouchContact(id: 4, point: TouchPoint(x: 220, y: 120), surfaceWidth: 400),
+    ])
+
+    #expect(closeSwipe == [
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 400,
+            kind: .systemAction(SystemActionEvent(action: .hideNotificationCenter))
+        ),
+    ])
+}
+
 @Test func threeFingerSystemActionSuppressesSingleFingerTapImmediatelyAfterRelease() {
     var currentTime: UInt64 = 0
     var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
@@ -809,6 +982,17 @@ private func threeFingerContacts(y: Double) -> [TouchContact] {
         TouchContact(id: 2, point: TouchPoint(x: 80, y: y)),
         TouchContact(id: 3, point: TouchPoint(x: 120, y: y)),
     ]
+}
+
+private extension [InputEvent] {
+    func containsSystemAction(_ expectedAction: SystemAction) -> Bool {
+        contains { event in
+            guard case .systemAction(let systemAction) = event.kind else {
+                return false
+            }
+            return systemAction.action == expectedAction
+        }
+    }
 }
 
 @Test func singleFingerTapWorksAfterTwoFingerScrollSuppressionWindow() {

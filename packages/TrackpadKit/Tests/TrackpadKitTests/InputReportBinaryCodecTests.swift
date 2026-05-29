@@ -34,7 +34,7 @@ import Testing
     let event = InputEvent(
         sequenceNumber: 10,
         timestampNanos: 1_300,
-        kind: .systemAction(SystemActionEvent(action: .nextSpace))
+        kind: .systemAction(SystemActionEvent(action: .hideNotificationCenter))
     )
 
     let decoded = try InputReportBinaryCodec.decode(InputReportBinaryCodec.encode(try InputReport(event: event)))

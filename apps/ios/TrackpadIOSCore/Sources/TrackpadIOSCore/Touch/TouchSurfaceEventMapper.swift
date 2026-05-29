@@ -16,10 +16,12 @@ public struct TouchPoint: Equatable, Sendable {
 public struct TouchContact: Equatable, Sendable {
     public let id: Int
     public let point: TouchPoint
+    public let surfaceWidth: Double?
 
-    public init(id: Int, point: TouchPoint) {
+    public init(id: Int, point: TouchPoint, surfaceWidth: Double? = nil) {
         self.id = id
         self.point = point
+        self.surfaceWidth = surfaceWidth
     }
 }
 
@@ -52,6 +54,8 @@ public struct TouchSurfaceEventMapper {
         case singleFinger
         case twoFinger
         case threeFingerSwipe
+        case rightEdgeNotificationCenter
+        case notificationCenterCloseSwipe
     }
 
     private struct GestureState {
@@ -67,14 +71,17 @@ public struct TouchSurfaceEventMapper {
         var suppressSingleFingerTap = false
         var didScroll = false
         var didEmitSystemAction = false
+        var didSeeSecondContact = false
         var threeFingerStartContacts: [Int: TouchPoint] = [:]
         var threeFingerPreviousContacts: [Int: TouchPoint] = [:]
+        var rightEdgeStartContacts: [Int: TouchPoint] = [:]
     }
 
     private var gestureState: GestureState?
     private var lastSingleTapEndNanos: UInt64?
     private var suppressSingleFingerTapUntilNanos: UInt64?
     private var suppressTapUntilNanos: UInt64?
+    private var notificationCenterCloseSwipeArmed = false
     public var gestureConfiguration: TouchGestureConfiguration
     private var nextSequenceNumber: UInt64 = 1
     private let timestampProvider: () -> UInt64
@@ -86,6 +93,11 @@ public struct TouchSurfaceEventMapper {
     private let threeFingerContactMovementTolerance: Double = 8
     private let threeFingerSwipeThreshold: Double = 52
     private let threeFingerSwipeAxisDominance: Double = 1.35
+    private let rightEdgeGestureStartInset: Double = 24
+    private let rightEdgeGestureSwipeThreshold: Double = 42
+    private let rightEdgeGestureAxisDominance: Double = 1.2
+    private let notificationCenterCloseSwipeThreshold: Double = 42
+    private let notificationCenterCloseSwipeAxisDominance: Double = 1.2
 
     public init(
         timestampProvider: @escaping () -> UInt64 = TouchSurfaceEventMapper.defaultTimestampNanos,
@@ -112,11 +124,19 @@ public struct TouchSurfaceEventMapper {
 
     public mutating func begin(with contacts: [TouchContact]) -> [InputEvent] {
         if var state = gestureState,
-           state.kind == .threeFingerSwipe,
            !contacts.isEmpty {
-            updateThreeFingerContacts(&state, with: contacts)
-            gestureState = state
-            return []
+            if state.kind == .threeFingerSwipe {
+                updateThreeFingerContacts(&state, with: contacts)
+            }
+            if state.kind == .rightEdgeNotificationCenter || shouldTransitionToRightEdgeNotificationCenter(from: state, contacts: contacts) {
+                state.kind = .rightEdgeNotificationCenter
+                updateRightEdgeContacts(&state, with: contacts)
+                return handleRightEdgeNotificationCenterContacts(&state, contacts: contacts)
+            }
+            if state.kind == .threeFingerSwipe {
+                gestureState = state
+                return []
+            }
         }
 
         guard let state = makeGestureState(from: contacts) else {
@@ -137,6 +157,12 @@ public struct TouchSurfaceEventMapper {
             return []
         }
         if state.kind == .threeFingerSwipe && contacts.isEmpty {
+            return []
+        }
+        if state.kind == .rightEdgeNotificationCenter && contacts.isEmpty {
+            return []
+        }
+        if state.kind == .notificationCenterCloseSwipe && contacts.count < 2 {
             return []
         }
         let candidatePoint = state.kind == .threeFingerSwipe
@@ -238,6 +264,39 @@ public struct TouchSurfaceEventMapper {
                 ))
             }
             state.threeFingerPreviousContacts = contactMap(from: contacts)
+        case .rightEdgeNotificationCenter:
+            updateRightEdgeContacts(&state, with: contacts)
+            if contacts.count >= 2 {
+                state.didSeeSecondContact = true
+            }
+
+            guard !state.didEmitSystemAction else {
+                gestureState = state
+                return []
+            }
+
+            if state.didSeeSecondContact,
+               hasRightEdgeNotificationCenterSwipe(in: state, contacts: contacts) {
+                state.didEmitSystemAction = true
+                events.append(makeEvent(
+                    timestampNanos: timestamp,
+                    kind: .systemAction(SystemActionEvent(action: .showNotificationCenter))
+                ))
+            }
+        case .notificationCenterCloseSwipe:
+            guard !state.didEmitSystemAction else {
+                gestureState = state
+                return []
+            }
+
+            if isNotificationCenterCloseSwipe(from: state.startPoint, to: currentPoint) {
+                state.didEmitSystemAction = true
+                notificationCenterCloseSwipeArmed = false
+                events.append(makeEvent(
+                    timestampNanos: timestamp,
+                    kind: .systemAction(SystemActionEvent(action: .hideNotificationCenter))
+                ))
+            }
         }
 
         gestureState = state
@@ -258,6 +317,10 @@ public struct TouchSurfaceEventMapper {
             shouldEndGesture = contacts.count < 2
         case .threeFingerSwipe:
             shouldEndGesture = contacts.isEmpty
+        case .rightEdgeNotificationCenter:
+            shouldEndGesture = contacts.isEmpty
+        case .notificationCenterCloseSwipe:
+            shouldEndGesture = contacts.count < 2
         }
 
         guard shouldEndGesture else {
@@ -314,6 +377,19 @@ public struct TouchSurfaceEventMapper {
                 suppressSingleFingerTapUntilNanos = timestamp + gestureConfiguration.scrollReleaseTapSuppressionNanos
                 suppressTapUntilNanos = timestamp + gestureConfiguration.systemActionReleaseSuppressionNanos
             }
+        case .rightEdgeNotificationCenter:
+            lastSingleTapEndNanos = nil
+            if state.didEmitSystemAction {
+                notificationCenterCloseSwipeArmed = true
+                suppressSingleFingerTapUntilNanos = timestamp + gestureConfiguration.scrollReleaseTapSuppressionNanos
+                suppressTapUntilNanos = timestamp + gestureConfiguration.systemActionReleaseSuppressionNanos
+            }
+        case .notificationCenterCloseSwipe:
+            lastSingleTapEndNanos = nil
+            if state.didEmitSystemAction {
+                suppressSingleFingerTapUntilNanos = timestamp + gestureConfiguration.scrollReleaseTapSuppressionNanos
+                suppressTapUntilNanos = timestamp + gestureConfiguration.systemActionReleaseSuppressionNanos
+            }
         }
 
         gestureState = nil
@@ -347,6 +423,17 @@ public struct TouchSurfaceEventMapper {
         switch contacts.count {
         case 1:
             let shouldSuppressSingleTap = isSingleFingerTapSuppressed(at: timestamp) || isTapSuppressed(at: timestamp)
+            if isRightEdgeNotificationCenterCandidate(contacts[0]) {
+                return GestureState(
+                    kind: .rightEdgeNotificationCenter,
+                    startTimeNanos: timestamp,
+                    startPoint: point,
+                    previousPoint: point,
+                    previousTimeNanos: timestamp,
+                    suppressSingleFingerTap: true,
+                    rightEdgeStartContacts: contactMap(from: contacts)
+                )
+            }
             return GestureState(
                 kind: .singleFinger,
                 startTimeNanos: timestamp,
@@ -357,6 +444,19 @@ public struct TouchSurfaceEventMapper {
                 suppressSingleFingerTap: shouldSuppressSingleTap
             )
         case 2:
+            if let rightEdgeState = makeRightEdgeNotificationCenterState(from: contacts, timestamp: timestamp, point: point) {
+                return rightEdgeState
+            }
+            if notificationCenterCloseSwipeArmed {
+                return GestureState(
+                    kind: .notificationCenterCloseSwipe,
+                    startTimeNanos: timestamp,
+                    startPoint: point,
+                    previousPoint: point,
+                    previousTimeNanos: timestamp,
+                    suppressSingleFingerTap: true
+                )
+            }
             return GestureState(
                 kind: .twoFinger,
                 startTimeNanos: timestamp,
@@ -378,6 +478,105 @@ public struct TouchSurfaceEventMapper {
         default:
             return nil
         }
+    }
+
+    private func makeRightEdgeNotificationCenterState(from contacts: [TouchContact], timestamp: UInt64, point: TouchPoint) -> GestureState? {
+        let rightEdgeContacts = contacts.filter(isRightEdgeNotificationCenterCandidate)
+        guard !rightEdgeContacts.isEmpty else {
+            return nil
+        }
+
+        return GestureState(
+            kind: .rightEdgeNotificationCenter,
+            startTimeNanos: timestamp,
+            startPoint: point,
+            previousPoint: point,
+            previousTimeNanos: timestamp,
+            suppressSingleFingerTap: true,
+            didSeeSecondContact: contacts.count >= 2,
+            rightEdgeStartContacts: contactMap(from: rightEdgeContacts)
+        )
+    }
+
+    private func shouldTransitionToRightEdgeNotificationCenter(from state: GestureState, contacts: [TouchContact]) -> Bool {
+        guard state.kind != .rightEdgeNotificationCenter,
+              contacts.count >= 2 else {
+            return false
+        }
+
+        return contacts.contains(where: isRightEdgeNotificationCenterCandidate)
+    }
+
+    private mutating func handleRightEdgeNotificationCenterContacts(_ state: inout GestureState, contacts: [TouchContact]) -> [InputEvent] {
+        if contacts.count >= 2 {
+            state.didSeeSecondContact = true
+        }
+        guard let currentPoint = trackedPoint(for: contacts) else {
+            gestureState = state
+            return []
+        }
+
+        let timestamp = timestampProvider()
+        state.previousPoint = currentPoint
+        state.previousTimeNanos = timestamp
+        state.maxDistanceFromStart = max(state.maxDistanceFromStart, distance(from: state.startPoint, to: currentPoint))
+        guard state.didSeeSecondContact,
+              !state.didEmitSystemAction,
+              hasRightEdgeNotificationCenterSwipe(in: state, contacts: contacts) else {
+            gestureState = state
+            return []
+        }
+
+        state.didEmitSystemAction = true
+        gestureState = state
+        return [
+            makeEvent(
+                timestampNanos: timestamp,
+                kind: .systemAction(SystemActionEvent(action: .showNotificationCenter))
+            ),
+        ]
+    }
+
+    private func updateRightEdgeContacts(_ state: inout GestureState, with contacts: [TouchContact]) {
+        for contact in contacts where state.rightEdgeStartContacts[contact.id] == nil && isRightEdgeNotificationCenterCandidate(contact) {
+            state.rightEdgeStartContacts[contact.id] = contact.point
+        }
+    }
+
+    private func isRightEdgeNotificationCenterCandidate(_ contact: TouchContact) -> Bool {
+        guard let surfaceWidth = contact.surfaceWidth, surfaceWidth > 0 else {
+            return false
+        }
+
+        return surfaceWidth - contact.point.x <= rightEdgeGestureStartInset
+    }
+
+    private func hasRightEdgeNotificationCenterSwipe(in state: GestureState, contacts: [TouchContact]) -> Bool {
+        contacts.contains { contact in
+            guard let start = state.rightEdgeStartContacts[contact.id] else {
+                return false
+            }
+
+            return isRightEdgeNotificationCenterSwipe(from: start, to: contact.point)
+        }
+    }
+
+    private func isRightEdgeNotificationCenterSwipe(from start: TouchPoint, to current: TouchPoint) -> Bool {
+        let dx = current.x - start.x
+        let dy = current.y - start.y
+        let absX = abs(dx)
+        let absY = abs(dy)
+
+        return dx <= -rightEdgeGestureSwipeThreshold && absX >= absY * rightEdgeGestureAxisDominance
+    }
+
+    private func isNotificationCenterCloseSwipe(from start: TouchPoint, to current: TouchPoint) -> Bool {
+        let dx = current.x - start.x
+        let dy = current.y - start.y
+        let absX = abs(dx)
+        let absY = abs(dy)
+
+        return dx >= notificationCenterCloseSwipeThreshold && absX >= absY * notificationCenterCloseSwipeAxisDominance
     }
 
     private func threeFingerSwipeAction(from start: TouchPoint, to current: TouchPoint) -> SystemAction? {

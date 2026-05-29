@@ -76,7 +76,7 @@ import Testing
     let event = InputEvent(
         sequenceNumber: 46,
         timestampNanos: 1_000_004,
-        kind: .systemAction(SystemActionEvent(action: .missionControl))
+        kind: .systemAction(SystemActionEvent(action: .hideNotificationCenter))
     )
 
     let data = try JSONEncoder().encode(event)

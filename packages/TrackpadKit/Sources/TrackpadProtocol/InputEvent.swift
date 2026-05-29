@@ -91,6 +91,8 @@ public enum SystemAction: String, Codable, Equatable, Sendable {
     case appExpose
     case previousSpace
     case nextSpace
+    case showNotificationCenter
+    case hideNotificationCenter
 }
 
 public enum PointerButton: String, Codable, Equatable, Sendable {

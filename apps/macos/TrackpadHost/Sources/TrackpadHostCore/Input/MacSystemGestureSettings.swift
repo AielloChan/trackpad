@@ -32,16 +32,26 @@ public struct MacSystemGestureSettings: Equatable, Sendable {
         )
     }
 
-    public func allowsThreeFingerSystemAction(_ action: SystemAction) -> Bool {
+    public func allowsSystemAction(_ action: SystemAction) -> Bool {
+        switch action {
+        case .showNotificationCenter, .hideNotificationCenter:
+            return true
+        case .missionControl, .appExpose, .previousSpace, .nextSpace:
+            return allowsThreeFingerSystemAction(action)
+        }
+    }
+
+    private func allowsThreeFingerSystemAction(_ action: SystemAction) -> Bool {
         guard !threeFingerDragEnabled else {
             return false
         }
-
         switch action {
         case .missionControl, .appExpose:
             return threeFingerVerticalSwipeEnabled
         case .previousSpace, .nextSpace:
             return threeFingerHorizontalSwipeEnabled
+        case .showNotificationCenter, .hideNotificationCenter:
+            return true
         }
     }
 
