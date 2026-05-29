@@ -35,6 +35,7 @@ final class TrackpadClientModel: ObservableObject {
     private let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? "ios-device"
     private let deviceName = UIDevice.current.name
     private var mapper = TouchSurfaceEventMapper()
+    private var inputEventTuningState = InputEventTuningState()
     private var configurationSyncState = ConfigurationSyncState(configuration: .defaults)
     private var activeConnectionConfiguration: TrackpadConnectionConfiguration?
     private var selectedDiscoveredHost: DiscoveredTrackpadHost?
@@ -197,6 +198,7 @@ final class TrackpadClientModel: ObservableObject {
         client.disconnect()
         activeConnectionConfiguration = nil
         mapper.end()
+        inputEventTuningState = InputEventTuningState()
         connectionPathLabel = "Path --"
         connectionState = .disconnected
     }
@@ -227,6 +229,7 @@ final class TrackpadClientModel: ObservableObject {
         applyGestureConfiguration()
         touchMoveSampleCounter += 1
         let events = mapper.move(with: contacts)
+        logDragDiagnostic("mapper.move contacts=\(contacts.scrollDiagnosticSummary) raw=\(events.eventDiagnosticSummary)", events: events)
         if contacts.count == 3 {
             logSystemGestureDiagnostic("move contacts=\(contacts.scrollDiagnosticSummary) events=\(events.eventDiagnosticSummary)")
         }
@@ -403,7 +406,13 @@ final class TrackpadClientModel: ObservableObject {
             return
         }
 
-        let tunedEvents = InputEventTuning(pointerSpeedMultiplier: pointerSpeedMultiplier).apply(to: events)
+        let tunedEvents = InputEventTuning(pointerSpeedMultiplier: pointerSpeedMultiplier).apply(to: events, state: &inputEventTuningState)
+        if events.containsDragDiagnosticEvent || tunedEvents.containsDragDiagnosticEvent {
+            logDragDiagnostic(
+                "send pointerSpeed=\(String(format: "%.3f", pointerSpeedMultiplier)) raw=\(events.eventDiagnosticSummary) tuned=\(tunedEvents.eventDiagnosticSummary)",
+                events: tunedEvents
+            )
+        }
         if tunedEvents.containsSystemActionEvent {
             logSystemGestureDiagnostic("send events=\(tunedEvents.eventDiagnosticSummary)")
         }
@@ -501,6 +510,14 @@ final class TrackpadClientModel: ObservableObject {
         recordDiagnosticLog("ios.systemGesture \(message)")
     }
 
+    private func logDragDiagnostic(_ message: String, events: [InputEvent]) {
+        guard events.containsDragDiagnosticEvent else {
+            return
+        }
+
+        recordDiagnosticLog("######### ios.drag \(message)")
+    }
+
 }
 
 private extension Array where Element == TouchContact {
@@ -537,6 +554,17 @@ private extension Array where Element == InputEvent {
         }
     }
 
+    var containsDragDiagnosticEvent: Bool {
+        contains { event in
+            switch event.kind {
+            case .pointerMove, .pointerButton, .tap:
+                return true
+            case .scroll, .systemAction, .contact:
+                return false
+            }
+        }
+    }
+
     var scrollDiagnosticSummary: String {
         eventDiagnosticSummary
     }
@@ -544,8 +572,8 @@ private extension Array where Element == InputEvent {
     var eventDiagnosticSummary: String {
         map { event in
             switch event.kind {
-            case .pointerMove:
-                return "seq=\(event.sequenceNumber):pointer"
+            case .pointerMove(let move):
+                return "seq=\(event.sequenceNumber):pointer(dx=\(String(format: "%.3f", move.dx)),dy=\(String(format: "%.3f", move.dy)))"
             case .pointerButton(let button):
                 return "seq=\(event.sequenceNumber):button(\(button.button.rawValue),\(button.phase.rawValue))"
             case .tap(let tap):

@@ -24,22 +24,26 @@ import TrackpadKit
     let event = mapper.move(to: TouchPoint(x: 17, y: 16))
 
     #expect(event == InputEvent(
-        sequenceNumber: 1,
+        sequenceNumber: 2,
         timestampNanos: 200,
         kind: .pointerMove(PointerMoveEvent(dx: 1, dy: -1))
     ))
 }
 
-@Test func firstLargeSingleFingerMoveRebasesWithoutPointerJump() {
+@Test func firstLargeSingleFingerMoveStartsImmediatelyWithLimitedDelta() {
     var mapper = TouchSurfaceEventMapper(timestampProvider: { 200 })
     _ = mapper.begin(at: TouchPoint(x: 10, y: 20))
 
     let first = mapper.move(to: TouchPoint(x: 16, y: 17))
     let second = mapper.move(to: TouchPoint(x: 17, y: 16))
 
-    #expect(first == nil)
-    #expect(second == InputEvent(
+    #expect(first == InputEvent(
         sequenceNumber: 1,
+        timestampNanos: 200,
+        kind: .pointerMove(PointerMoveEvent(dx: 3, dy: -3))
+    ))
+    #expect(second == InputEvent(
+        sequenceNumber: 2,
         timestampNanos: 200,
         kind: .pointerMove(PointerMoveEvent(dx: 1, dy: -1))
     ))
@@ -120,10 +124,16 @@ import TrackpadKit
     currentTime = 550_000_000
     let ended = mapper.end(with: [])
 
-    #expect(firstMove.isEmpty)
-    #expect(moved == [
+    #expect(firstMove == [
         InputEvent(
             sequenceNumber: 1,
+            timestampNanos: 500_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 3, dy: 3))
+        ),
+    ])
+    #expect(moved == [
+        InputEvent(
+            sequenceNumber: 2,
             timestampNanos: 500_000_000,
             kind: .pointerMove(PointerMoveEvent(dx: 2, dy: 1))
         ),
@@ -169,17 +179,22 @@ import TrackpadKit
             timestampNanos: 260_000_000,
             kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))
         ),
+        InputEvent(
+            sequenceNumber: 3,
+            timestampNanos: 260_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 3, dy: 0))
+        ),
     ])
     #expect(moved == [
         InputEvent(
-            sequenceNumber: 3,
+            sequenceNumber: 4,
             timestampNanos: 280_000_000,
             kind: .pointerMove(PointerMoveEvent(dx: 2, dy: 0))
         ),
     ])
     #expect(secondEnd == [
         InputEvent(
-            sequenceNumber: 4,
+            sequenceNumber: 5,
             timestampNanos: 300_000_000,
             kind: .pointerButton(PointerButtonEvent(button: .left, phase: .up))
         ),
@@ -210,10 +225,16 @@ import TrackpadKit
     let secondEnd = mapper.end(with: [])
 
     #expect(secondBegin.isEmpty)
-    #expect(firstMove.isEmpty)
-    #expect(moved == [
+    #expect(firstMove == [
         InputEvent(
             sequenceNumber: 2,
+            timestampNanos: 290_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 3, dy: 0))
+        ),
+    ])
+    #expect(moved == [
+        InputEvent(
+            sequenceNumber: 3,
             timestampNanos: 290_000_000,
             kind: .pointerMove(PointerMoveEvent(dx: 2, dy: 0))
         ),
@@ -253,7 +274,7 @@ import TrackpadKit
     ])
 }
 
-@Test func tapDragCandidateRebasesLargeFirstMoveButKeepsDragActive() {
+@Test func tapDragCandidateLimitsLargeFirstMoveButStillMovesImmediately() {
     var currentTime: UInt64 = 0
     var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
     _ = mapper.begin(with: [
@@ -281,10 +302,15 @@ import TrackpadKit
             timestampNanos: 220_000_000,
             kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))
         ),
+        InputEvent(
+            sequenceNumber: 3,
+            timestampNanos: 220_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 3, dy: -3))
+        ),
     ])
     #expect(secondMove == [
         InputEvent(
-            sequenceNumber: 3,
+            sequenceNumber: 4,
             timestampNanos: 236_000_000,
             kind: .pointerMove(PointerMoveEvent(dx: 0.5, dy: 0))
         ),

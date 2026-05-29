@@ -81,6 +81,7 @@ public struct TouchSurfaceEventMapper {
     private let tapMovementTolerance: Double = 8
     private let firstPointerMoveRebaseTolerance: Double = 3
     private let tapDragFirstMoveRebaseTolerance: Double = 8
+    private let tapDragFirstMoveMaximumRebasedDelta: Double = 3
     private let scrollMovementTolerance: Double = 0.5
     private let threeFingerContactMovementTolerance: Double = 8
     private let threeFingerSwipeThreshold: Double = 52
@@ -160,8 +161,11 @@ public struct TouchSurfaceEventMapper {
                 state.hasProcessedSingleFingerMove = true
                 if distanceFromPreviousPoint > firstPointerMoveRebaseTolerance {
                     state.suppressSingleFingerTap = true
+                    if let limitedMove = limitedFirstMove(dx: dx, dy: dy, maximumDelta: firstPointerMoveRebaseTolerance) {
+                        events.append(makeEvent(timestampNanos: timestamp, kind: .pointerMove(limitedMove)))
+                    }
                     gestureState = state
-                    return []
+                    return events
                 }
             }
 
@@ -173,6 +177,9 @@ public struct TouchSurfaceEventMapper {
                 }
 
                 if distanceFromPreviousPoint > tapDragFirstMoveRebaseTolerance {
+                    if let limitedMove = limitedFirstMove(dx: dx, dy: dy, maximumDelta: tapDragFirstMoveMaximumRebasedDelta) {
+                        events.append(makeEvent(timestampNanos: timestamp, kind: .pointerMove(limitedMove)))
+                    }
                     gestureState = state
                     return events
                 }
@@ -483,6 +490,20 @@ public struct TouchSurfaceEventMapper {
 
     private func distance(dx: Double, dy: Double) -> Double {
         return (dx * dx + dy * dy).squareRoot()
+    }
+
+    private func limitedFirstMove(dx: Double, dy: Double, maximumDelta: Double) -> PointerMoveEvent? {
+        let limitedDx = clamped(dx, to: maximumDelta)
+        let limitedDy = clamped(dy, to: maximumDelta)
+        guard limitedDx != 0 || limitedDy != 0 else {
+            return nil
+        }
+
+        return PointerMoveEvent(dx: limitedDx, dy: limitedDy)
+    }
+
+    private func clamped(_ value: Double, to limit: Double) -> Double {
+        return min(max(value, -limit), limit)
     }
 
     public static func defaultTimestampNanos() -> UInt64 {

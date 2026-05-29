@@ -500,8 +500,13 @@ private struct PendingLatencyProbe {
 struct InputReportSendBuffer {
     private let maxPendingReportAgeNanos: UInt64
     private let maxPendingReportCount: Int
+    private let uncoalescedDragStartupMoveCount = 3
+    private let uncoalescedPointerStartupMoveCount = 3
     private var isSending = false
     private var pendingReports: [InputReport] = []
+    private var isLeftButtonDown = false
+    private var remainingUncoalescedDragStartupMoves = 0
+    private var remainingUncoalescedPointerStartupMoves = 0
 
     init(
         maxPendingReportAgeNanos: UInt64 = 50_000_000,
@@ -550,12 +555,41 @@ struct InputReportSendBuffer {
 
     private mutating func appendPending(_ reports: [InputReport]) {
         for report in reports {
+            if shouldAppendWithoutCoalescing(report) {
+                pendingReports.append(report)
+                continue
+            }
+
             if let last = pendingReports.last,
                let coalesced = last.coalesced(with: report) {
                 pendingReports[pendingReports.count - 1] = coalesced
             } else {
                 pendingReports.append(report)
             }
+        }
+    }
+
+    private mutating func shouldAppendWithoutCoalescing(_ report: InputReport) -> Bool {
+        switch report.kind {
+        case .pointerButton(let button, let phase) where button == .left && phase == .down:
+            isLeftButtonDown = true
+            remainingUncoalescedDragStartupMoves = uncoalescedDragStartupMoveCount
+            return true
+        case .pointerButton(let button, let phase) where button == .left && phase == .up:
+            isLeftButtonDown = false
+            remainingUncoalescedDragStartupMoves = 0
+            return true
+        case .contact(let phase, _) where phase == .began:
+            remainingUncoalescedPointerStartupMoves = uncoalescedPointerStartupMoveCount
+            return true
+        case .pointerMove where isLeftButtonDown && remainingUncoalescedDragStartupMoves > 0:
+            remainingUncoalescedDragStartupMoves -= 1
+            return true
+        case .pointerMove where remainingUncoalescedPointerStartupMoves > 0:
+            remainingUncoalescedPointerStartupMoves -= 1
+            return true
+        default:
+            return false
         }
     }
 

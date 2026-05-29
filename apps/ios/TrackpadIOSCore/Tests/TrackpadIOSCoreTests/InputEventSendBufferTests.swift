@@ -48,6 +48,42 @@ import TrackpadKit
     ])
 }
 
+@Test func sendBufferDoesNotCoalesceDragStartupPointerReports() {
+    var buffer = InputReportSendBuffer()
+    let button = InputReport(
+        sequenceNumber: 1,
+        timestampNanos: 1,
+        kind: .pointerButton(button: .left, phase: .down)
+    )
+
+    #expect(buffer.enqueue([button]) == [button])
+    #expect(buffer.enqueue([inputReport(sequence: 2, dx: 3, dy: 0)]) == nil)
+    #expect(buffer.enqueue([inputReport(sequence: 3, dx: 3, dy: 0)]) == nil)
+    #expect(buffer.enqueue([inputReport(sequence: 4, dx: 3, dy: 0)]) == nil)
+    #expect(buffer.completeCurrentSend() == [
+        inputReport(sequence: 2, dx: 3, dy: 0),
+        inputReport(sequence: 3, dx: 3, dy: 0),
+        inputReport(sequence: 4, dx: 3, dy: 0),
+    ])
+}
+
+@Test func sendBufferDoesNotCoalescePointerStartupReportsAfterContactBegin() {
+    var buffer = InputReportSendBuffer()
+    let contact = InputReport(
+        sequenceNumber: 1,
+        timestampNanos: 1,
+        kind: .contact(phase: .began, contactCount: 1)
+    )
+
+    #expect(buffer.enqueue([contact]) == [contact])
+    #expect(buffer.enqueue([inputReport(sequence: 2, dx: 3, dy: 0)]) == nil)
+    #expect(buffer.enqueue([inputReport(sequence: 3, dx: 3, dy: 0)]) == nil)
+    #expect(buffer.completeCurrentSend() == [
+        inputReport(sequence: 2, dx: 3, dy: 0),
+        inputReport(sequence: 3, dx: 3, dy: 0),
+    ])
+}
+
 @Test func sendBufferDropsStaleRealtimeReportsButKeepsBoundaryReports() {
     var buffer = InputReportSendBuffer(maxPendingReportAgeNanos: 10)
     let button = InputReport(

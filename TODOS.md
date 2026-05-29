@@ -101,6 +101,12 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Normalize host-side scroll momentum to display frame intervals and carry subpixel wheel deltas into the tail.
 - [x] Remove iOS connected-state tuning sliders and keep the mobile connected bar status-only.
 - [x] Add JSONL-backed trusted-client auto pairing after first short-code pairing.
+- [x] Limit large tap-drag first-move rebasing so drag starts moving immediately without a landing-offset jump.
+- [x] Keep the first tap-drag movement limit after pointer speed tuning and add temporary drag diagnostics.
+- [x] Diagnose remaining tap-drag startup jump and limit the first drag startup moves across send batches.
+- [x] Prevent send-buffer coalescing from merging the limited drag startup moves into a larger first drag report.
+- [x] Reduce normal single-finger pointer startup dead zone by sending limited first movement immediately.
+- [x] Prevent pointer startup movement from being amplified by pointer speed tuning or send-buffer coalescing.
 - [ ] Manually verify two-finger scroll release no longer causes sudden inertial jumps on a real iPad.
 - [ ] Manually verify two-finger scroll release no longer emits a terminal reverse scroll on a real iPad.
 
