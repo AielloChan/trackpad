@@ -188,3 +188,7 @@ swift test
 `TODOS.md` 是当前进度源。`plans/*.md` 是具体任务的实施来源。重要架构决策应记录到 `docs/decisions/`。
 
 贡献者和 coding agent 修改代码前应先阅读 `AGENTS.md`。本项目偏好小而清晰的文件、可复用的平台无关逻辑，以及覆盖协议编码、手势状态机、事件映射和 transport 行为的测试。
+
+## 许可证
+
+Trackpad 使用 Apache License, Version 2.0 授权。详见 [LICENSE](LICENSE)。

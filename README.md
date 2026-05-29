@@ -207,3 +207,7 @@ Longer-term work:
 `TODOS.md` is the active progress source. `plans/*.md` are the implementation source for scoped work. Important architecture decisions belong in `docs/decisions/`.
 
 Coding agents and contributors should read `AGENTS.md` before editing. The project favors small, readable files, reusable platform-neutral logic, and tests for protocol encoding, gesture state machines, event mapping, and transport behavior.
+
+## License
+
+Trackpad is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
