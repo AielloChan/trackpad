@@ -43,6 +43,7 @@ final class TrackpadClientModel: ObservableObject {
     private var isDiscoveryRunning = false
     private var didRunDebugAutomation = false
     private var latencyTask: Task<Void, Never>?
+    private var pendingTapFlushTask: Task<Void, Never>?
     private var touchMoveSampleCounter = 0
     private var sentEventCounter = 0
     private var lastRateSampleNanos = DispatchTime.now().uptimeNanoseconds
@@ -195,8 +196,10 @@ final class TrackpadClientModel: ObservableObject {
 
     func disconnect() {
         stopLatencyUpdates()
+        cancelPendingTapFlush()
         client.disconnect()
         activeConnectionConfiguration = nil
+        mapper.cancelPendingEvents()
         mapper.end()
         inputEventTuningState = InputEventTuningState()
         connectionPathLabel = "Path --"
@@ -208,6 +211,7 @@ final class TrackpadClientModel: ObservableObject {
             return
         }
 
+        cancelPendingTapFlush()
         applyGestureConfiguration()
         if contacts.count >= 2 {
             logScrollTouchDiagnostic("begin contacts=\(contacts.scrollDiagnosticSummary)")
@@ -240,6 +244,8 @@ final class TrackpadClientModel: ObservableObject {
     func touchEnded(with contacts: [TouchContact]) {
         applyGestureConfiguration()
         guard isConnected else {
+            cancelPendingTapFlush()
+            mapper.cancelPendingEvents()
             mapper.end()
             return
         }
@@ -250,6 +256,7 @@ final class TrackpadClientModel: ObservableObject {
         }
         logScrollEvents("end contacts=\(contacts.scrollDiagnosticSummary)", events: events)
         send(events)
+        schedulePendingTapFlush()
     }
 
     private func applyRemoteConfiguration(_ snapshot: ConfigurationSyncSnapshot) {
@@ -422,6 +429,27 @@ final class TrackpadClientModel: ObservableObject {
         } catch {
             handleInputSendFailure(String(describing: error))
         }
+    }
+
+    private func schedulePendingTapFlush() {
+        cancelPendingTapFlush()
+        let delayNanos = UInt64((tapDragMaximumIntervalMilliseconds * 1_000_000).rounded())
+        pendingTapFlushTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: delayNanos)
+            guard !Task.isCancelled,
+                  let self,
+                  self.isConnected else {
+                return
+            }
+
+            self.applyGestureConfiguration()
+            self.send(self.mapper.flushExpiredPendingEvents())
+        }
+    }
+
+    private func cancelPendingTapFlush() {
+        pendingTapFlushTask?.cancel()
+        pendingTapFlushTask = nil
     }
 
     private func startLatencyUpdates() {

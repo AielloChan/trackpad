@@ -77,8 +77,14 @@ public struct TouchSurfaceEventMapper {
         var rightEdgeStartContacts: [Int: TouchPoint] = [:]
     }
 
+    private struct PendingTap {
+        var button: PointerButton
+        var timestampNanos: UInt64
+    }
+
     private var gestureState: GestureState?
     private var lastSingleTapEndNanos: UInt64?
+    private var pendingTap: PendingTap?
     private var suppressSingleFingerTapUntilNanos: UInt64?
     private var suppressTapUntilNanos: UInt64?
     private var notificationCenterCloseSwipeArmed = false
@@ -139,18 +145,24 @@ public struct TouchSurfaceEventMapper {
             }
         }
 
-        guard let state = makeGestureState(from: contacts) else {
+        let timestamp = timestampProvider()
+        var events: [InputEvent] = []
+        if !canCurrentContactsContinuePendingTapDrag(contacts, timestamp: timestamp) {
+            events.append(contentsOf: flushPendingTap(clearTapDragAnchor: true))
+        }
+
+        guard let state = makeGestureState(from: contacts, timestamp: timestamp) else {
             gestureState = nil
-            return []
+            return events
         }
 
         gestureState = state
-        return []
+        return events
     }
 
     public mutating func move(with contacts: [TouchContact]) -> [InputEvent] {
         guard var state = gestureState else {
-            gestureState = makeGestureState(from: contacts)
+            gestureState = makeGestureState(from: contacts, timestamp: timestampProvider())
             return []
         }
         if state.kind == .twoFinger && contacts.count < 2 {
@@ -199,6 +211,7 @@ public struct TouchSurfaceEventMapper {
                 state.hasProcessedSingleFingerMove = true
                 if !state.isDragging {
                     state.isDragging = true
+                    cancelPendingTap()
                     events.append(makeEvent(timestampNanos: timestamp, kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))))
                 }
 
@@ -213,6 +226,7 @@ public struct TouchSurfaceEventMapper {
 
             if state.isTapDragCandidate && !state.isDragging {
                 state.isDragging = true
+                cancelPendingTap()
                 events.append(makeEvent(timestampNanos: timestamp, kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))))
             }
 
@@ -305,7 +319,7 @@ public struct TouchSurfaceEventMapper {
 
     public mutating func end(with contacts: [TouchContact]) -> [InputEvent] {
         guard let state = gestureState else {
-            gestureState = makeGestureState(from: contacts)
+            gestureState = makeGestureState(from: contacts, timestamp: timestampProvider())
             return []
         }
 
@@ -349,10 +363,10 @@ public struct TouchSurfaceEventMapper {
             } else if state.suppressSingleFingerTap {
                 lastSingleTapEndNanos = nil
             } else if timestamp - state.startTimeNanos <= gestureConfiguration.tapMaximumDurationNanos && state.maxDistanceFromStart <= tapMovementTolerance {
-                events.append(makeEvent(
-                    timestampNanos: timestamp,
-                    kind: .tap(TapEvent(button: .left))
-                ))
+                if state.isTapDragCandidate {
+                    events.append(contentsOf: flushPendingTap(clearTapDragAnchor: false))
+                }
+                pendingTap = PendingTap(button: .left, timestampNanos: timestamp)
                 lastSingleTapEndNanos = timestamp
             } else {
                 lastSingleTapEndNanos = nil
@@ -404,6 +418,14 @@ public struct TouchSurfaceEventMapper {
         _ = end(with: [])
     }
 
+    public mutating func flushExpiredPendingEvents() -> [InputEvent] {
+        flushExpiredPendingEvents(at: timestampProvider())
+    }
+
+    public mutating func cancelPendingEvents() {
+        cancelPendingTap()
+    }
+
     private mutating func makeEvent(timestampNanos: UInt64, kind: InputEventKind) -> InputEvent {
         let event = InputEvent(
             sequenceNumber: nextSequenceNumber,
@@ -414,12 +436,11 @@ public struct TouchSurfaceEventMapper {
         return event
     }
 
-    private func makeGestureState(from contacts: [TouchContact]) -> GestureState? {
+    private func makeGestureState(from contacts: [TouchContact], timestamp: UInt64) -> GestureState? {
         guard let point = trackedPoint(for: contacts) else {
             return nil
         }
 
-        let timestamp = timestampProvider()
         switch contacts.count {
         case 1:
             let shouldSuppressSingleTap = isSingleFingerTapSuppressed(at: timestamp) || isTapSuppressed(at: timestamp)
@@ -478,6 +499,49 @@ public struct TouchSurfaceEventMapper {
         default:
             return nil
         }
+    }
+
+    private func canCurrentContactsContinuePendingTapDrag(_ contacts: [TouchContact], timestamp: UInt64) -> Bool {
+        guard pendingTap != nil,
+              contacts.count == 1,
+              !isSingleFingerTapSuppressed(at: timestamp),
+              !isTapSuppressed(at: timestamp) else {
+            return false
+        }
+
+        return isWithinTapDragInterval(timestamp)
+    }
+
+    private mutating func flushExpiredPendingEvents(at timestamp: UInt64) -> [InputEvent] {
+        guard let pendingTap,
+              timestamp >= pendingTap.timestampNanos,
+              timestamp - pendingTap.timestampNanos >= gestureConfiguration.tapDragMaximumIntervalNanos else {
+            return []
+        }
+
+        return flushPendingTap(clearTapDragAnchor: true)
+    }
+
+    private mutating func flushPendingTap(clearTapDragAnchor: Bool) -> [InputEvent] {
+        guard let pendingTap else {
+            return []
+        }
+
+        self.pendingTap = nil
+        if clearTapDragAnchor {
+            lastSingleTapEndNanos = nil
+        }
+        return [
+            makeEvent(
+                timestampNanos: pendingTap.timestampNanos,
+                kind: .tap(TapEvent(button: pendingTap.button))
+            ),
+        ]
+    }
+
+    private mutating func cancelPendingTap() {
+        pendingTap = nil
+        lastSingleTapEndNanos = nil
     }
 
     private func makeRightEdgeNotificationCenterState(from contacts: [TouchContact], timestamp: UInt64, point: TouchPoint) -> GestureState? {

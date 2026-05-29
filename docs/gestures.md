@@ -18,7 +18,7 @@ Apple's current public trackpad gesture documentation groups gestures into point
 | Canonical name | Chinese alias | Apple-style gesture | Current effect | State |
 | --- | --- | --- | --- | --- |
 | `PointerMove` | 光标移动 | Move one finger on the surface. | Moves the macOS pointer. | `supported` |
-| `LeftClickTap` | 左键轻点 | Tap with one finger. | Sends a left click. | `supported` |
+| `LeftClickTap` | 左键轻点 | Tap with one finger. | Sends a left click after the tap-drag window expires. | `supported` |
 | `DoubleClickTap` | 双击 | Two quick `LeftClickTap` gestures. | Host maps consecutive taps to native click counts for double-click selection/opening. | `supported` |
 | `TapThenDrag` | 轻点后拖拽 | Tap, lift, quickly press again, then move. | Holds left mouse button and drags. | `supported` |
 | `RightClickTap` | 右键轻点 | Click or tap with two fingers. | Sends a right click. | `supported` |
@@ -51,8 +51,10 @@ Apple's current public trackpad gesture documentation groups gestures into point
 
 ### `TapThenDrag`
 
-- A completed `LeftClickTap` followed by a second press inside the drag interval starts a drag.
+- A one-finger tap is held briefly as a pending click so it can still become `TapThenDrag`.
+- A completed one-finger tap followed by a second press inside the drag interval starts a drag.
 - Default drag interval is `140 ms`.
+- When the second press moves, the pending click is cancelled instead of being sent first. This keeps Mission Control from exiting before a window drag begins.
 - Movement during the second press sends left-button down, pointer movement, then left-button up on release.
 
 ### `TwoFingerScroll`

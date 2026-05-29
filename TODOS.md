@@ -111,6 +111,7 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Document canonical gesture names and current support states.
 - [x] Allow any touch in the current session to be the Notification Center right-edge candidate.
 - [x] Add scoped two-finger right swipe to close Notification Center after opening it from the client.
+- [x] Delay one-finger tap emission until the tap-drag window expires so Mission Control window thumbnails can be dragged between Spaces.
 - [ ] Manually verify two-finger scroll release no longer causes sudden inertial jumps on a real iPad.
 - [ ] Manually verify two-finger scroll release no longer emits a terminal reverse scroll on a real iPad.
 
@@ -167,6 +168,7 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [ ] Manually verify reconnecting a known real iPhone/iPad skips the current pairing code.
 - [ ] Manually verify right-edge inward two-contact gesture opens Notification Center on macOS.
 - [ ] Manually verify two-finger right swipe closes Notification Center only after the client opened it.
+- [ ] Manually verify `TapThenDrag` can drag a Mission Control window thumbnail to another Space without first exiting Mission Control.
 
 ## Deferred
 

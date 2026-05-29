@@ -342,6 +342,8 @@ Represents a complete click intent.
 
 The macOS host converts a tap into a down/up pair. Consecutive taps inside the host double-click interval are mapped to increasing CoreGraphics click counts for native double-click behavior.
 
+The current iOS client may hold a one-finger tap locally until the tap-drag interval expires. If the user quickly presses again and moves, the pending tap is cancelled and the client emits `pointerButton(left, down)`, movement, and `pointerButton(left, up)` for drag instead. This avoids sending an accidental click before tap-then-drag workflows such as dragging Mission Control window thumbnails between Spaces.
+
 ### `scroll`
 
 Represents relative scroll movement.

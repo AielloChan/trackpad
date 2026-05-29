@@ -98,7 +98,10 @@ import TrackpadKit
     let ended = mapper.end(with: [])
 
     #expect(began.isEmpty)
-    #expect(ended == [
+    #expect(ended.isEmpty)
+
+    currentTime = 240_000_000
+    #expect(mapper.flushExpiredPendingEvents() == [
         InputEvent(
             sequenceNumber: 1,
             timestampNanos: 100_000_000,
@@ -165,40 +168,69 @@ import TrackpadKit
     currentTime = 300_000_000
     let secondEnd = mapper.end(with: [])
 
-    #expect(firstEnd == [
-        InputEvent(
-            sequenceNumber: 1,
-            timestampNanos: 100_000_000,
-            kind: .tap(TapEvent(button: .left))
-        ),
-    ])
+    #expect(firstEnd.isEmpty)
     #expect(secondBegin.isEmpty)
     #expect(firstMove == [
         InputEvent(
-            sequenceNumber: 2,
+            sequenceNumber: 1,
             timestampNanos: 260_000_000,
             kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))
         ),
         InputEvent(
-            sequenceNumber: 3,
+            sequenceNumber: 2,
             timestampNanos: 260_000_000,
             kind: .pointerMove(PointerMoveEvent(dx: 3, dy: 0))
         ),
     ])
     #expect(moved == [
         InputEvent(
-            sequenceNumber: 4,
+            sequenceNumber: 3,
             timestampNanos: 280_000_000,
             kind: .pointerMove(PointerMoveEvent(dx: 2, dy: 0))
         ),
     ])
     #expect(secondEnd == [
         InputEvent(
-            sequenceNumber: 5,
+            sequenceNumber: 4,
             timestampNanos: 300_000_000,
             kind: .pointerButton(PointerButtonEvent(button: .left, phase: .up))
         ),
     ])
+}
+
+@Test func tapThenQuickSecondPressDragDoesNotFlushFirstTap() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 0, y: 0)),
+    ])
+
+    currentTime = 100_000_000
+    _ = mapper.end(with: [])
+    currentTime = 180_000_000
+    _ = mapper.begin(with: [
+        TouchContact(id: 2, point: TouchPoint(x: 0, y: 0)),
+    ])
+    currentTime = 260_000_000
+    let moved = mapper.move(with: [
+        TouchContact(id: 2, point: TouchPoint(x: 20, y: 0)),
+    ])
+    currentTime = 500_000_000
+    let flushed = mapper.flushExpiredPendingEvents()
+
+    #expect(moved == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 260_000_000,
+            kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))
+        ),
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 260_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 3, dy: 0))
+        ),
+    ])
+    #expect(flushed.isEmpty)
 }
 
 @Test func tapThenSecondPressAfterDefaultDragWindowDoesNotStartDrag() {
@@ -224,7 +256,13 @@ import TrackpadKit
     currentTime = 330_000_000
     let secondEnd = mapper.end(with: [])
 
-    #expect(secondBegin.isEmpty)
+    #expect(secondBegin == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 100_000_000,
+            kind: .tap(TapEvent(button: .left))
+        ),
+    ])
     #expect(firstMove == [
         InputEvent(
             sequenceNumber: 2,
@@ -262,12 +300,12 @@ import TrackpadKit
 
     #expect(moved == [
         InputEvent(
-            sequenceNumber: 2,
+            sequenceNumber: 1,
             timestampNanos: 220_000_000,
             kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))
         ),
         InputEvent(
-            sequenceNumber: 3,
+            sequenceNumber: 2,
             timestampNanos: 220_000_000,
             kind: .pointerMove(PointerMoveEvent(dx: 3, dy: 2))
         ),
@@ -298,19 +336,19 @@ import TrackpadKit
 
     #expect(firstMove == [
         InputEvent(
-            sequenceNumber: 2,
+            sequenceNumber: 1,
             timestampNanos: 220_000_000,
             kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))
         ),
         InputEvent(
-            sequenceNumber: 3,
+            sequenceNumber: 2,
             timestampNanos: 220_000_000,
             kind: .pointerMove(PointerMoveEvent(dx: 3, dy: -3))
         ),
     ])
     #expect(secondMove == [
         InputEvent(
-            sequenceNumber: 4,
+            sequenceNumber: 3,
             timestampNanos: 236_000_000,
             kind: .pointerMove(PointerMoveEvent(dx: 0.5, dy: 0))
         ),
@@ -340,12 +378,12 @@ import TrackpadKit
 
     #expect(moved == [
         InputEvent(
-            sequenceNumber: 2,
+            sequenceNumber: 1,
             timestampNanos: 300_000_000,
             kind: .pointerButton(PointerButtonEvent(button: .left, phase: .down))
         ),
         InputEvent(
-            sequenceNumber: 3,
+            sequenceNumber: 2,
             timestampNanos: 300_000_000,
             kind: .pointerMove(PointerMoveEvent(dx: 3, dy: 0))
         ),
@@ -1016,9 +1054,12 @@ private extension [InputEvent] {
     ])
     currentTime = 320_000_000
     let tapEnd = mapper.end(with: [])
+    currentTime = 460_000_000
+    let flushedTap = mapper.flushExpiredPendingEvents()
 
     #expect(tapBegin.isEmpty)
-    #expect(tapEnd == [
+    #expect(tapEnd.isEmpty)
+    #expect(flushedTap == [
         InputEvent(
             sequenceNumber: 3,
             timestampNanos: 320_000_000,
