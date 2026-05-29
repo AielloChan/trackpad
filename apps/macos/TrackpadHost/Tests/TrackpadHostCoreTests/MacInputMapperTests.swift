@@ -218,6 +218,44 @@ import TrackpadKit
     ])
 }
 
+@Test func openLaunchpadSystemActionIgnoresThreeFingerGestureSettings() {
+    var mapper = MacInputMapper(systemGestureSettings: MacSystemGestureSettings(
+        threeFingerVerticalSwipeEnabled: false,
+        threeFingerHorizontalSwipeEnabled: false,
+        threeFingerDragEnabled: true
+    ))
+    let event = InputEvent(
+        sequenceNumber: 14,
+        timestampNanos: 23,
+        kind: .systemAction(SystemActionEvent(action: .openLaunchpad))
+    )
+
+    #expect(mapper.commands(for: event) == [
+        .systemAction(.openLaunchpad),
+    ])
+}
+
+@Test func fourFingerSystemActionsIgnoreThreeFingerGestureSettings() {
+    var mapper = MacInputMapper(systemGestureSettings: MacSystemGestureSettings(
+        threeFingerVerticalSwipeEnabled: false,
+        threeFingerHorizontalSwipeEnabled: false,
+        threeFingerDragEnabled: true
+    ))
+    let actions: [SystemAction] = [.closeLaunchpad, .showDesktop, .hideDesktop]
+
+    for action in actions {
+        let event = InputEvent(
+            sequenceNumber: 15,
+            timestampNanos: 24,
+            kind: .systemAction(SystemActionEvent(action: action))
+        )
+
+        #expect(mapper.commands(for: event) == [
+            .systemAction(action),
+        ])
+    }
+}
+
 @Test func pointerMoveWhileLeftButtonIsDownMapsToDragCommand() {
     var mapper = MacInputMapper()
 

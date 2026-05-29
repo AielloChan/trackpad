@@ -93,6 +93,10 @@ public enum SystemAction: String, Codable, Equatable, Sendable {
     case nextSpace
     case showNotificationCenter
     case hideNotificationCenter
+    case openLaunchpad
+    case closeLaunchpad
+    case showDesktop
+    case hideDesktop
 }
 
 public enum PointerButton: String, Codable, Equatable, Sendable {

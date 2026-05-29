@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Darwin
 import Foundation
@@ -121,7 +122,32 @@ public struct MacInputInjector: Sendable {
             postSpaceShortcut(action)
         case .showNotificationCenter, .hideNotificationCenter:
             postNotificationCenter(action)
+        case .openLaunchpad:
+            postLaunchpad()
+        case .closeLaunchpad:
+            postKey(action.keyCode, flags: action.flags)
+        case .showDesktop, .hideDesktop:
+            postDesktop(action)
         }
+    }
+
+    private func postLaunchpad() {
+        let url = URL(fileURLWithPath: "/System/Applications/Launchpad.app")
+        if NSWorkspace.shared.open(url) {
+            logger.info(category: "input", "launchpad opened")
+        } else {
+            logger.warning(category: "input", "launchpad openFailed path=\(url.path)")
+        }
+    }
+
+    private func postDesktop(_ action: SystemAction) {
+        if CoreDockNotificationSender.post(name: "com.apple.showdesktop.awake") {
+            logger.info(category: "input", "showDesktop notification posted action=\(action.rawValue)")
+            return
+        }
+
+        logger.warning(category: "input", "showDesktop notification failed action=\(action.rawValue) fallback=CGEvent")
+        postKey(action.keyCode, flags: action.flags)
     }
 
     private func postNotificationCenter(_ action: SystemAction) {
@@ -283,11 +309,24 @@ private extension SystemAction {
             return 0
         case .hideNotificationCenter:
             return 0
+        case .openLaunchpad:
+            return 0
+        case .closeLaunchpad:
+            return 53
+        case .showDesktop:
+            return 103
+        case .hideDesktop:
+            return 103
         }
     }
 
     var flags: CGEventFlags {
-        .maskControl
+        switch self {
+        case .previousSpace, .nextSpace:
+            return .maskControl
+        case .missionControl, .appExpose, .showNotificationCenter, .hideNotificationCenter, .openLaunchpad, .closeLaunchpad, .showDesktop, .hideDesktop:
+            return []
+        }
     }
 }
 

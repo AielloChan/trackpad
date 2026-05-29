@@ -34,7 +34,7 @@ The first version should define semantic input events rather than raw platform-s
 
 `scrollMomentumSettings` is retained as a compatibility frame, but new clients should use `configurationSync`.
 
-`systemAction` events carry semantic desktop actions such as Mission Control, App Expose, previous Space, next Space, show Notification Center, and hide Notification Center. Clients should send the semantic action rather than a macOS-specific keyboard shortcut so other host platforms can map the same intent to their own system APIs.
+`systemAction` events carry semantic desktop actions such as Mission Control, App Expose, previous Space, next Space, show Notification Center, hide Notification Center, open/close Launchpad, and show/hide Desktop. Clients should send the semantic action rather than a macOS-specific keyboard shortcut so other host platforms can map the same intent to their own system APIs.
 
 `contact` events are reliable boundary events emitted as soon as one or more fingers touch the mobile surface. Hosts do not inject visible input for them; the macOS host uses `contact.began` to immediately cancel locally generated inertial scrolling.
 

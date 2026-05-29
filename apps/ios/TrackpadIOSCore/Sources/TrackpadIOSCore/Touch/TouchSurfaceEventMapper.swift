@@ -56,6 +56,18 @@ public struct TouchSurfaceEventMapper {
         case threeFingerSwipe
         case rightEdgeNotificationCenter
         case notificationCenterCloseSwipe
+        case launchpadPinch
+    }
+
+    private enum FourFingerInterfaceState {
+        case normal
+        case launchpad
+        case desktop
+    }
+
+    private enum FourFingerPinchDirection {
+        case inward
+        case outward
     }
 
     private struct GestureState {
@@ -75,6 +87,7 @@ public struct TouchSurfaceEventMapper {
         var threeFingerStartContacts: [Int: TouchPoint] = [:]
         var threeFingerPreviousContacts: [Int: TouchPoint] = [:]
         var rightEdgeStartContacts: [Int: TouchPoint] = [:]
+        var launchpadPinchStartContacts: [Int: TouchPoint] = [:]
     }
 
     private struct PendingTap {
@@ -88,6 +101,7 @@ public struct TouchSurfaceEventMapper {
     private var suppressSingleFingerTapUntilNanos: UInt64?
     private var suppressTapUntilNanos: UInt64?
     private var notificationCenterCloseSwipeArmed = false
+    private var fourFingerInterfaceState: FourFingerInterfaceState = .normal
     public var gestureConfiguration: TouchGestureConfiguration
     private var nextSequenceNumber: UInt64 = 1
     private let timestampProvider: () -> UInt64
@@ -104,6 +118,9 @@ public struct TouchSurfaceEventMapper {
     private let rightEdgeGestureAxisDominance: Double = 1.2
     private let notificationCenterCloseSwipeThreshold: Double = 42
     private let notificationCenterCloseSwipeAxisDominance: Double = 1.2
+    private let launchpadPinchAverageContractionThreshold: Double = 32
+    private let launchpadPinchContactContractionThreshold: Double = 18
+    private let launchpadPinchMinimumInwardContactCount = 3
 
     public init(
         timestampProvider: @escaping () -> UInt64 = TouchSurfaceEventMapper.defaultTimestampNanos,
@@ -131,6 +148,11 @@ public struct TouchSurfaceEventMapper {
     public mutating func begin(with contacts: [TouchContact]) -> [InputEvent] {
         if var state = gestureState,
            !contacts.isEmpty {
+            let timestamp = timestampProvider()
+            if shouldTransitionToLaunchpadPinch(from: state, contacts: contacts, timestamp: timestamp) {
+                gestureState = makeLaunchpadPinchState(from: contacts, timestamp: timestamp, point: averagePoint(from: contacts.map(\.point)) ?? state.previousPoint)
+                return []
+            }
             if state.kind == .threeFingerSwipe {
                 updateThreeFingerContacts(&state, with: contacts)
             }
@@ -175,6 +197,9 @@ public struct TouchSurfaceEventMapper {
             return []
         }
         if state.kind == .notificationCenterCloseSwipe && contacts.count < 2 {
+            return []
+        }
+        if state.kind == .launchpadPinch && contacts.isEmpty {
             return []
         }
         let candidatePoint = state.kind == .threeFingerSwipe
@@ -311,6 +336,20 @@ public struct TouchSurfaceEventMapper {
                     kind: .systemAction(SystemActionEvent(action: .hideNotificationCenter))
                 ))
             }
+        case .launchpadPinch:
+            guard !state.didEmitSystemAction else {
+                gestureState = state
+                return []
+            }
+
+            if let direction = fourFingerPinchDirection(in: state, contacts: contacts),
+               let action = systemAction(for: direction) {
+                state.didEmitSystemAction = true
+                events.append(makeEvent(
+                    timestampNanos: timestamp,
+                    kind: .systemAction(SystemActionEvent(action: action))
+                ))
+            }
         }
 
         gestureState = state
@@ -335,6 +374,8 @@ public struct TouchSurfaceEventMapper {
             shouldEndGesture = contacts.isEmpty
         case .notificationCenterCloseSwipe:
             shouldEndGesture = contacts.count < 2
+        case .launchpadPinch:
+            shouldEndGesture = contacts.isEmpty
         }
 
         guard shouldEndGesture else {
@@ -399,6 +440,12 @@ public struct TouchSurfaceEventMapper {
                 suppressTapUntilNanos = timestamp + gestureConfiguration.systemActionReleaseSuppressionNanos
             }
         case .notificationCenterCloseSwipe:
+            lastSingleTapEndNanos = nil
+            if state.didEmitSystemAction {
+                suppressSingleFingerTapUntilNanos = timestamp + gestureConfiguration.scrollReleaseTapSuppressionNanos
+                suppressTapUntilNanos = timestamp + gestureConfiguration.systemActionReleaseSuppressionNanos
+            }
+        case .launchpadPinch:
             lastSingleTapEndNanos = nil
             if state.didEmitSystemAction {
                 suppressSingleFingerTapUntilNanos = timestamp + gestureConfiguration.scrollReleaseTapSuppressionNanos
@@ -496,6 +543,8 @@ public struct TouchSurfaceEventMapper {
                 threeFingerStartContacts: contactMap(from: contacts),
                 threeFingerPreviousContacts: contactMap(from: contacts)
             )
+        case 4:
+            return makeLaunchpadPinchState(from: contacts, timestamp: timestamp, point: point)
         default:
             return nil
         }
@@ -569,6 +618,34 @@ public struct TouchSurfaceEventMapper {
         }
 
         return contacts.contains(where: isRightEdgeNotificationCenterCandidate)
+    }
+
+    private func shouldTransitionToLaunchpadPinch(from state: GestureState, contacts: [TouchContact], timestamp: UInt64) -> Bool {
+        guard state.kind != .launchpadPinch,
+              !state.didEmitSystemAction,
+              contacts.count == 4,
+              !isTapSuppressed(at: timestamp) else {
+            return false
+        }
+
+        switch state.kind {
+        case .singleFinger, .twoFinger, .threeFingerSwipe:
+            return true
+        case .rightEdgeNotificationCenter, .notificationCenterCloseSwipe, .launchpadPinch:
+            return false
+        }
+    }
+
+    private func makeLaunchpadPinchState(from contacts: [TouchContact], timestamp: UInt64, point: TouchPoint) -> GestureState {
+        GestureState(
+            kind: .launchpadPinch,
+            startTimeNanos: timestamp,
+            startPoint: point,
+            previousPoint: point,
+            previousTimeNanos: timestamp,
+            suppressSingleFingerTap: true,
+            launchpadPinchStartContacts: contactMap(from: contacts)
+        )
     }
 
     private mutating func handleRightEdgeNotificationCenterContacts(_ state: inout GestureState, contacts: [TouchContact]) -> [InputEvent] {
@@ -692,6 +769,69 @@ public struct TouchSurfaceEventMapper {
         }
     }
 
+    private mutating func systemAction(for direction: FourFingerPinchDirection) -> SystemAction? {
+        switch (fourFingerInterfaceState, direction) {
+        case (.normal, .inward):
+            fourFingerInterfaceState = .launchpad
+            return .openLaunchpad
+        case (.launchpad, .inward):
+            return nil
+        case (.desktop, .inward):
+            fourFingerInterfaceState = .normal
+            return .hideDesktop
+        case (.normal, .outward):
+            fourFingerInterfaceState = .desktop
+            return .showDesktop
+        case (.launchpad, .outward):
+            fourFingerInterfaceState = .normal
+            return .closeLaunchpad
+        case (.desktop, .outward):
+            return nil
+        }
+    }
+
+    private func fourFingerPinchDirection(in state: GestureState, contacts: [TouchContact]) -> FourFingerPinchDirection? {
+        guard contacts.count == 4,
+              let startCenter = averagePoint(from: contacts.compactMap({ state.launchpadPinchStartContacts[$0.id] })),
+              let currentCenter = averagePoint(from: contacts.map(\.point)) else {
+            return nil
+        }
+
+        var totalContraction = 0.0
+        var inwardContactCount = 0
+        var outwardContactCount = 0
+        var matchedContactCount = 0
+        for contact in contacts {
+            guard let start = state.launchpadPinchStartContacts[contact.id] else {
+                continue
+            }
+
+            matchedContactCount += 1
+            let contraction = distance(from: startCenter, to: start) - distance(from: currentCenter, to: contact.point)
+            totalContraction += contraction
+            if contraction >= launchpadPinchContactContractionThreshold {
+                inwardContactCount += 1
+            }
+            if contraction <= -launchpadPinchContactContractionThreshold {
+                outwardContactCount += 1
+            }
+        }
+        guard matchedContactCount == 4 else {
+            return nil
+        }
+
+        let averageContraction = totalContraction / Double(matchedContactCount)
+        if averageContraction >= launchpadPinchAverageContractionThreshold,
+           inwardContactCount >= launchpadPinchMinimumInwardContactCount {
+            return .inward
+        }
+        if averageContraction <= -launchpadPinchAverageContractionThreshold,
+           outwardContactCount >= launchpadPinchMinimumInwardContactCount {
+            return .outward
+        }
+        return nil
+    }
+
     private func isSingleFingerTapSuppressed(at timestamp: UInt64) -> Bool {
         guard let suppressSingleFingerTapUntilNanos else {
             return false
@@ -723,6 +863,8 @@ public struct TouchSurfaceEventMapper {
         case 2:
             return averagePoint(from: contacts.map(\.point))
         case 3:
+            return averagePoint(from: contacts.map(\.point))
+        case 4:
             return averagePoint(from: contacts.map(\.point))
         default:
             return nil

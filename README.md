@@ -31,6 +31,7 @@ Phase 1 is functionally usable for local LAN testing:
 - Touching the iOS surface again immediately interrupts host-generated inertial scrolling.
 - Right-edge inward swipe with two contacts before release opens macOS Notification Center; a following two-finger right swipe closes it.
 - Three-finger swipe up/down/left/right for Mission Control, App Expose, and Spaces navigation, gated by the host Mac's current three-finger trackpad settings.
+- Four-finger pinch/spread follows Launchpad and Show Desktop state transitions.
 - Client-side latency, touch sample rate, and sent event rate display.
 - Active connection path display for Wi-Fi, cellular, wired/cable-like, and constrained paths.
 - Initial wired-only TCP connection attempt before default TCP fallback when the system exposes a cable-like path.

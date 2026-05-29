@@ -37,8 +37,8 @@ Apple's current public trackpad gesture documentation groups gestures into point
 | `PinchZoom` | 捏合缩放 | Pinch two fingers closed or spread them apart. | Not implemented. | `planned` |
 | `Rotate` | 双指旋转 | Move two fingers around each other. | Not implemented. | `planned` |
 | `SwipeBetweenPages` | 页面前进后退 | Swipe left or right with two fingers. | Not implemented. Must be disambiguated from horizontal scroll. | `planned` |
-| `LaunchpadPinch` | Launchpad 捏合 | Pinch with thumb and three fingers. | Not implemented. | `deferred` |
-| `ShowDesktopSpread` | 显示桌面展开 | Spread thumb and three fingers. | Not implemented. | `planned` |
+| `LaunchpadPinch` | Launchpad 捏合 | Pinch with thumb and three fingers. | Opens Launchpad from the normal app view, or returns from Show Desktop. | `supported` |
+| `ShowDesktopSpread` | 显示桌面展开 | Spread thumb and three fingers. | Closes Launchpad or shows Desktop, depending on the tracked interface state. | `supported` |
 | `ThreeFingerDrag` | 三指拖移 | Drag with three fingers when enabled in Accessibility settings. | Not implemented as an Apple-equivalent gesture. Current dragging uses `TapThenDrag`. | `deferred` |
 
 ## Current Gesture Rules
@@ -84,6 +84,23 @@ Apple's current public trackpad gesture documentation groups gestures into point
 - This gesture is armed only after this client emits `NotificationCenterEdgeSwipe` and all contacts lift.
 - It starts with two contacts and requires a primarily rightward swipe.
 - It is deliberately not global, so ordinary two-finger horizontal movement keeps mapping to `TwoFingerScroll` unless the Notification Center close context is armed.
+
+### `LaunchpadPinch`
+
+- Starts when four contacts are present on the iOS surface.
+- Recognizes an inward pinch by comparing each contact's radius from the gesture centroid against its start radius.
+- From normal app display, emits `openLaunchpad` and enters the tracked Launchpad state.
+- From tracked Launchpad state, a repeated inward pinch is ignored.
+- From tracked Show Desktop state, emits `hideDesktop` and returns to normal app display.
+- The macOS host opens Launchpad directly and does not gate this action by three-finger trackpad settings.
+
+### `ShowDesktopSpread`
+
+- Starts when four contacts are present on the iOS surface.
+- Recognizes an outward spread by comparing each contact's radius from the gesture centroid against its start radius.
+- From tracked Launchpad state, emits `closeLaunchpad` and returns to normal app display.
+- From normal app display, emits `showDesktop` and enters the tracked Show Desktop state.
+- From tracked Show Desktop state, a repeated outward spread is ignored.
 
 ## Naming Rules
 

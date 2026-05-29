@@ -863,6 +863,89 @@ import TrackpadKit
     ])
 }
 
+@Test func fourFingerPinchInEmitsOpenLaunchpadOnce() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 60, y: 80)),
+        TouchContact(id: 2, point: TouchPoint(x: 160, y: 80)),
+        TouchContact(id: 3, point: TouchPoint(x: 60, y: 180)),
+        TouchContact(id: 4, point: TouchPoint(x: 160, y: 180)),
+    ])
+
+    currentTime = 100
+    let smallPinch = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 70, y: 90)),
+        TouchContact(id: 2, point: TouchPoint(x: 150, y: 90)),
+        TouchContact(id: 3, point: TouchPoint(x: 70, y: 170)),
+        TouchContact(id: 4, point: TouchPoint(x: 150, y: 170)),
+    ])
+    currentTime = 200
+    let pinch = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 96, y: 116)),
+        TouchContact(id: 2, point: TouchPoint(x: 124, y: 116)),
+        TouchContact(id: 3, point: TouchPoint(x: 96, y: 144)),
+        TouchContact(id: 4, point: TouchPoint(x: 124, y: 144)),
+    ])
+    currentTime = 300
+    let continuedPinch = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 105, y: 125)),
+        TouchContact(id: 2, point: TouchPoint(x: 115, y: 125)),
+        TouchContact(id: 3, point: TouchPoint(x: 105, y: 135)),
+        TouchContact(id: 4, point: TouchPoint(x: 115, y: 135)),
+    ])
+
+    #expect(smallPinch.isEmpty)
+    #expect(pinch == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 200,
+            kind: .systemAction(SystemActionEvent(action: .openLaunchpad))
+        ),
+    ])
+    #expect(continuedPinch.isEmpty)
+}
+
+@Test func fourFingerPanDoesNotOpenLaunchpad() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 60, y: 80)),
+        TouchContact(id: 2, point: TouchPoint(x: 160, y: 80)),
+        TouchContact(id: 3, point: TouchPoint(x: 60, y: 180)),
+        TouchContact(id: 4, point: TouchPoint(x: 160, y: 180)),
+    ])
+
+    currentTime = 100
+    let pan = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 100, y: 80)),
+        TouchContact(id: 2, point: TouchPoint(x: 200, y: 80)),
+        TouchContact(id: 3, point: TouchPoint(x: 100, y: 180)),
+        TouchContact(id: 4, point: TouchPoint(x: 200, y: 180)),
+    ])
+
+    #expect(!pan.containsSystemAction(.openLaunchpad))
+}
+
+@Test func fourFingerPinchAndSpreadFollowLaunchpadAndDesktopStateTransitions() {
+    let clock = TestClock()
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { clock.now })
+
+    let openLaunchpad = performFourFingerPinchIn(&mapper, clock: clock)
+    let repeatedPinchIn = performFourFingerPinchIn(&mapper, clock: clock)
+    let closeLaunchpad = performFourFingerSpreadOut(&mapper, clock: clock)
+    let showDesktop = performFourFingerSpreadOut(&mapper, clock: clock)
+    let repeatedSpreadOut = performFourFingerSpreadOut(&mapper, clock: clock)
+    let hideDesktop = performFourFingerPinchIn(&mapper, clock: clock)
+
+    #expect(openLaunchpad.containsSystemAction(.openLaunchpad))
+    #expect(!repeatedPinchIn.containsSystemAction(.openLaunchpad))
+    #expect(closeLaunchpad.containsSystemAction(.closeLaunchpad))
+    #expect(showDesktop.containsSystemAction(.showDesktop))
+    #expect(!repeatedSpreadOut.containsSystemAction(.showDesktop))
+    #expect(hideDesktop.containsSystemAction(.hideDesktop))
+}
+
 @Test func threeFingerSystemActionSuppressesSingleFingerTapImmediatelyAfterRelease() {
     var currentTime: UInt64 = 0
     var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
@@ -1020,6 +1103,50 @@ private func threeFingerContacts(y: Double) -> [TouchContact] {
         TouchContact(id: 2, point: TouchPoint(x: 80, y: y)),
         TouchContact(id: 3, point: TouchPoint(x: 120, y: y)),
     ]
+}
+
+private final class TestClock {
+    var now: UInt64 = 0
+}
+
+private func performFourFingerPinchIn(_ mapper: inout TouchSurfaceEventMapper, clock: TestClock) -> [InputEvent] {
+    clock.now += 100
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 60, y: 80)),
+        TouchContact(id: 2, point: TouchPoint(x: 160, y: 80)),
+        TouchContact(id: 3, point: TouchPoint(x: 60, y: 180)),
+        TouchContact(id: 4, point: TouchPoint(x: 160, y: 180)),
+    ])
+    clock.now += 100
+    let events = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 96, y: 116)),
+        TouchContact(id: 2, point: TouchPoint(x: 124, y: 116)),
+        TouchContact(id: 3, point: TouchPoint(x: 96, y: 144)),
+        TouchContact(id: 4, point: TouchPoint(x: 124, y: 144)),
+    ])
+    clock.now += 100
+    _ = mapper.end(with: [])
+    return events
+}
+
+private func performFourFingerSpreadOut(_ mapper: inout TouchSurfaceEventMapper, clock: TestClock) -> [InputEvent] {
+    clock.now += 100
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 96, y: 116)),
+        TouchContact(id: 2, point: TouchPoint(x: 124, y: 116)),
+        TouchContact(id: 3, point: TouchPoint(x: 96, y: 144)),
+        TouchContact(id: 4, point: TouchPoint(x: 124, y: 144)),
+    ])
+    clock.now += 100
+    let events = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 60, y: 80)),
+        TouchContact(id: 2, point: TouchPoint(x: 160, y: 80)),
+        TouchContact(id: 3, point: TouchPoint(x: 60, y: 180)),
+        TouchContact(id: 4, point: TouchPoint(x: 160, y: 180)),
+    ])
+    clock.now += 100
+    _ = mapper.end(with: [])
+    return events
 }
 
 private extension [InputEvent] {

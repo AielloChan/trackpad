@@ -34,7 +34,7 @@ public struct MacSystemGestureSettings: Equatable, Sendable {
 
     public func allowsSystemAction(_ action: SystemAction) -> Bool {
         switch action {
-        case .showNotificationCenter, .hideNotificationCenter:
+        case .showNotificationCenter, .hideNotificationCenter, .openLaunchpad, .closeLaunchpad, .showDesktop, .hideDesktop:
             return true
         case .missionControl, .appExpose, .previousSpace, .nextSpace:
             return allowsThreeFingerSystemAction(action)
@@ -50,7 +50,7 @@ public struct MacSystemGestureSettings: Equatable, Sendable {
             return threeFingerVerticalSwipeEnabled
         case .previousSpace, .nextSpace:
             return threeFingerHorizontalSwipeEnabled
-        case .showNotificationCenter, .hideNotificationCenter:
+        case .showNotificationCenter, .hideNotificationCenter, .openLaunchpad, .closeLaunchpad, .showDesktop, .hideDesktop:
             return true
         }
     }

@@ -299,6 +299,10 @@ Used by `systemAction` in the `button` byte.
 | `4` | `nextSpace` |
 | `5` | `showNotificationCenter` |
 | `6` | `hideNotificationCenter` |
+| `7` | `openLaunchpad` |
+| `8` | `closeLaunchpad` |
+| `9` | `showDesktop` |
+| `10` | `hideDesktop` |
 
 ### Contact Phases
 
@@ -379,6 +383,7 @@ three-finger swipe right -> systemAction(previousSpace)
 three-finger swipe left  -> systemAction(nextSpace)
 right-edge inward swipe with two contacts before release -> systemAction(showNotificationCenter)
 two-finger right swipe after Notification Center was opened by this client -> systemAction(hideNotificationCenter)
+four-finger pinch/spread -> stateful systemAction(openLaunchpad | closeLaunchpad | showDesktop | hideDesktop)
 ```
 
 The macOS host reads the current three-finger trackpad settings before executing these actions. If three-finger vertical or horizontal swipes are disabled, or three-finger drag is enabled, the corresponding remote three-finger system actions are ignored. Mission Control and App Expose use Dock's Mission Control notification entry point on macOS so they do not depend on the user's keyboard shortcut settings. Space navigation is intentionally mapped to the same keyboard shortcut path as `Control-Left` and `Control-Right`.
@@ -386,6 +391,8 @@ The macOS host reads the current three-finger trackpad settings before executing
 `showNotificationCenter` follows the macOS trackpad gesture shape: begin at the right edge and swipe inward. On the iOS surface, recognition starts when any contact in the current touch session begins within the right-edge inset. The action is emitted only if that edge contact crosses the inward movement threshold and two contacts are present at some point before all contacts lift. The macOS host executes this action independently of three-finger trackpad settings.
 
 `hideNotificationCenter` is emitted only from the client-side Notification Center context after this client opened Notification Center. This keeps the close gesture from conflicting with ordinary two-finger horizontal scroll in other apps.
+
+Four-finger pinch/spread follows Apple's thumb-and-three-fingers Launchpad and Show Desktop gesture shapes at the semantic level. The current iOS implementation keeps a small client-side interface state: inward pinch from normal opens Launchpad; repeated inward pinch while Launchpad is active is ignored; outward spread from Launchpad closes Launchpad; outward spread from normal shows Desktop; repeated outward spread while Desktop is active is ignored; inward pinch from Desktop hides Desktop. The macOS host does not gate these actions on three-finger trackpad settings.
 
 ### `contact`
 

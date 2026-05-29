@@ -284,6 +284,10 @@ private extension SystemAction {
         case .nextSpace: return 4
         case .showNotificationCenter: return 5
         case .hideNotificationCenter: return 6
+        case .openLaunchpad: return 7
+        case .closeLaunchpad: return 8
+        case .showDesktop: return 9
+        case .hideDesktop: return 10
         }
     }
 
@@ -295,6 +299,10 @@ private extension SystemAction {
         case 4: self = .nextSpace
         case 5: self = .showNotificationCenter
         case 6: self = .hideNotificationCenter
+        case 7: self = .openLaunchpad
+        case 8: self = .closeLaunchpad
+        case 9: self = .showDesktop
+        case 10: self = .hideDesktop
         default: throw InputReportBinaryCodecError.unsupportedSystemAction(reportRawValue)
         }
     }

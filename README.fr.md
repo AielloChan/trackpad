@@ -24,6 +24,7 @@ La phase 1 est utilisable pour des tests en reseau local :
 - Defilement a deux doigts sans inertie generee cote client.
 - Balayage vers l'interieur depuis le bord droit, avec deux contacts avant le relachement, pour ouvrir le centre de notifications macOS, puis balayage a deux doigts vers la droite pour le fermer.
 - Balayage a trois doigts haut/bas/gauche/droite pour Mission Control, App Expose et la navigation entre Spaces.
+- Pincement/ecartement a quatre doigts avec transitions d'etat Launchpad et Bureau.
 - Affichage cote client de la latence, du taux d'echantillonnage tactile et du taux d'evenements envoyes.
 - Curseurs de reglage pour la vitesse du pointeur, l'inertie du defilement et les delais des gestes.
 - Injection cote macOS pour mouvement, clic, glisser, phases de defilement, phases d'inertie et etat de double-clic.

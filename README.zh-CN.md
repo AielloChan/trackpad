@@ -24,6 +24,7 @@ git@github.com:AielloChan/trackpad.git
 - 双指滚动，不再由客户端生成惯性滚动。
 - 右侧边缘向内滑动，并且抬起前出现过双指触点时，打开 macOS 通知中心；随后双指右扫可关闭通知中心。
 - 三指上/下/左/右滑动触发 Mission Control、App Expose 和 Spaces 切换。
+- 四指抓握/释放支持 Launchpad 和显示桌面的状态过渡。
 - 客户端展示延迟、触控采样率和发送事件率。
 - 连接状态栏提供光标速度、滚动惯性和手势时序滑块。
 - macOS host 支持移动、点击、拖拽、滚动 phase、momentum phase 和双击 click state 注入。
