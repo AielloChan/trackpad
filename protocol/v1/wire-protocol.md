@@ -5,7 +5,7 @@ This document describes the current Trackpad v1 wire protocol used between the m
 The protocol is intentionally split into two message families:
 
 - JSON Lines `SessionFrame` control messages for low-frequency, human-readable session traffic.
-- Fixed-size binary `InputReport` messages for high-frequency pointer, button, tap, scroll, contact, and system action input.
+- Fixed-size binary `InputReport` messages for high-frequency pointer, button, tap, scroll, magnify, contact, and system action input.
 
 This is a HID-like application protocol. It borrows the compact report idea from HID, but it is not a USB HID descriptor, Bluetooth HID profile, DriverKit virtual HID device, or OS-level Magic Trackpad clone.
 
@@ -149,6 +149,7 @@ Compatibility frame sent by an authorized client when the user changes inertial 
 
 | Field | Type | Meaning |
 | --- | --- | --- |
+| `isEnabled` | `Bool` | Whether the host should synthesize inertial scroll commands. Missing values decode as `true` for compatibility. |
 | `amount` | `Double` | Multiplier applied by the host to the locally computed initial momentum delta. |
 | `decayRate` | `Double` | Per-frame decay factor used by the host-side momentum synthesizer. |
 | `tailWindowMilliseconds` | `Double` | Final finger-scroll sample window used by the host to estimate release velocity. |
@@ -172,6 +173,7 @@ Current `TrackpadConfiguration` fields:
 | `gestures.tapMaximumDurationMilliseconds` | `Double` | iOS tap recognition. |
 | `gestures.tapDragMaximumIntervalMilliseconds` | `Double` | iOS tap-then-drag recognition. |
 | `gestures.scrollReleaseTapSuppressionMilliseconds` | `Double` | iOS scroll-release tap guard. |
+| `scrollMomentum.isEnabled` | `Bool` | macOS host momentum synthesis. |
 | `scrollMomentum.amount` | `Double` | macOS host momentum synthesis. |
 | `scrollMomentum.decayRate` | `Double` | macOS host momentum synthesis. |
 | `scrollMomentum.tailWindowMilliseconds` | `Double` | macOS host momentum synthesis. |
@@ -184,6 +186,7 @@ Current defaults and UI-supported tuning ranges:
 | `gestures.tapMaximumDurationMilliseconds` | `250` | `60...500 ms` |
 | `gestures.tapDragMaximumIntervalMilliseconds` | `140` | `40...250 ms` |
 | `gestures.scrollReleaseTapSuppressionMilliseconds` | `80` | `0...250 ms` |
+| `scrollMomentum.isEnabled` | `true` | `true / false` |
 | `scrollMomentum.amount` | `5.0` | `0...12` |
 | `scrollMomentum.decayRate` | `0.95` | `0.72...0.995` |
 | `scrollMomentum.tailWindowMilliseconds` | `140` | `30...500 ms` |
@@ -246,12 +249,15 @@ Before encoding, `dx` and `dy` are rounded to the nearest fixed-point value and 
 | ---: | --- | --- |
 | `1` | `pointerMove` | `sequenceNumber`, `timestampNanos`, `dx`, `dy` |
 | `2` | `pointerButton` | `sequenceNumber`, `timestampNanos`, `button`, `phase` |
-| `3` | `tap` | `sequenceNumber`, `timestampNanos`, `button` |
+| `3` | `tap` | `sequenceNumber`, `timestampNanos`, `button`, `phase` as click count |
 | `4` | `scroll` | `sequenceNumber`, `timestampNanos`, `dx`, `dy`, `phase`, `momentumPhase` |
 | `5` | `systemAction` | `sequenceNumber`, `timestampNanos`, `button` |
 | `6` | `contact` | `sequenceNumber`, `timestampNanos`, `button`, `phase` |
+| `7` | `magnify` | `sequenceNumber`, `timestampNanos`, `dx`, `phase` |
 
 Unknown report kinds are invalid for v1 and should close or reject the stream.
+
+For `magnify`, the fixed-point `dx` field carries the relative magnification delta. Positive values mean spread/zoom in, and negative values mean pinch/zoom out. The `dy`, `button`, and `momentumPhase` fields are unused for this kind.
 
 ### Pointer Buttons
 
@@ -344,9 +350,9 @@ Button reports must not be dropped or coalesced across movement reports in a way
 
 Represents a complete click intent.
 
-The macOS host converts a tap into a down/up pair. Consecutive taps inside the host double-click interval are mapped to increasing CoreGraphics click counts for native double-click behavior.
+Tap events carry an explicit `clickCount` in the protocol model. The binary report stores that value in the byte normally used as `phase` for other report kinds. A missing JSON `clickCount` or a binary zero value means `1`. The macOS host converts a tap into a down/up pair with the provided click count; it does not promote ordinary consecutive taps on its own.
 
-The current iOS client may hold a one-finger tap locally until the tap-drag interval expires. If the user quickly presses again and moves, the pending tap is cancelled and the client emits `pointerButton(left, down)`, movement, and `pointerButton(left, up)` for drag instead. This avoids sending an accidental click before tap-then-drag workflows such as dragging Mission Control window thumbnails between Spaces.
+The current iOS client may hold a one-finger tap locally until the tap-drag interval expires. If the user quickly presses again and moves, the pending tap is cancelled and the client emits `pointerButton(left, down)`, movement, and `pointerButton(left, up)` for drag instead. If the user quickly taps again without moving, the client emits the second tap with `clickCount=2`. This avoids sending an accidental click before tap-then-drag workflows such as dragging Mission Control window thumbnails between Spaces, while keeping ordinary single taps as single clicks.
 
 ### `scroll`
 

@@ -10,6 +10,7 @@ The first version should define semantic input events rather than raw platform-s
 - `pointer.button`
 - `pointer.tap`
 - `scroll`
+- `magnify`
 - `contact`
 - `systemAction`
 - `capabilities`
@@ -22,17 +23,21 @@ The first version should define semantic input events rather than raw platform-s
 - `configurationSync`
 - `trustedClientKey`
 
+`pointer.tap` events carry a button and an explicit click count. Ordinary taps default to `clickCount=1`; clients send `clickCount=2` only when they intentionally recognize a double-click gesture. Hosts should not promote unrelated consecutive tap events on their own.
+
 `session.ping` / `session.pong` are protocol-level latency frames. The client sends a ping with a local timestamp and the host echoes it as a pong after pairing, allowing the client to calculate round-trip time without tying the feature to LAN, WebRTC, or relay transport details.
 
 `hostLogRequest` / `clientLogUpload` are paired diagnostics frames. The host can ask an authorized client to upload a bounded local log payload, and the client replies on the same session without exposing platform-specific log storage paths in the protocol.
 
 `scroll` events carry `dx`, `dy`, a required finger-scroll `phase`, and an optional `momentumPhase`. Normal finger movement leaves `momentumPhase` empty. The current iOS client does not transmit synthetic momentum on the hot path; the macOS host synthesizes local momentum commands after finger scroll ends.
 
-`configurationSync` is the low-frequency control frame for replicated settings. It carries a full `TrackpadConfiguration` snapshot containing pointer, gesture, and scroll momentum settings. Endpoints apply snapshots only when the value differs, so remote application does not echo the same configuration back.
+`magnify` events carry a relative `magnification` delta and a required phase. Positive values mean spread/zoom in, and negative values mean pinch/zoom out. Hosts can map this semantic event to the best local zoom implementation available on that platform.
+
+`configurationSync` is the low-frequency control frame for replicated settings. It carries a full `TrackpadConfiguration` snapshot containing pointer, gesture, and scroll momentum settings. Scroll momentum settings include an `isEnabled` switch so the host can fully disable inertial scroll synthesis while preserving amount, decay, and tail-window values. Endpoints apply snapshots only when the value differs, so remote application does not echo the same configuration back.
 
 `trustedClientKey` is sent by the host after a successful short-code pairing. The client stores the raw key locally and includes it in future `clientHello` frames. The host stores only a key hash in its JSONL authorized-client file and can auto-authorize matching future connections before checking the current short code.
 
-`scrollMomentumSettings` is retained as a compatibility frame, but new clients should use `configurationSync`.
+`scrollMomentumSettings` is retained as a compatibility frame, but new clients should use `configurationSync`. When `isEnabled` is absent, receivers treat it as `true`.
 
 `systemAction` events carry semantic desktop actions such as Mission Control, App Expose, previous Space, next Space, show Notification Center, hide Notification Center, open/close Launchpad, and show/hide Desktop. Clients should send the semantic action rather than a macOS-specific keyboard shortcut so other host platforms can map the same intent to their own system APIs.
 
@@ -55,7 +60,7 @@ byte 30     momentum phase
 byte 31     reserved
 ```
 
-The binary report is HID-like, not a system HID descriptor. It keeps the app-level semantic model compact while allowing pending movement and scroll deltas to be coalesced before transport send.
+For `magnify` reports, bytes `20-23` carry the fixed-point magnification delta and bytes `24-27` are unused. The binary report is HID-like, not a system HID descriptor. It keeps the app-level semantic model compact while allowing pending movement, scroll deltas, and compatible magnify deltas to be coalesced before transport send.
 
 QR pairing uses a URL payload that is separate from the input stream:
 

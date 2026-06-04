@@ -40,6 +40,7 @@ public struct TrackpadConfiguration: Codable, Equatable, Sendable {
             pointer: pointer,
             gestures: gestures,
             scrollMomentum: ScrollMomentumSettings(
+                isEnabled: scrollMomentum.isEnabled,
                 amount: amount,
                 decayRate: scrollMomentum.decayRate,
                 tailWindowMilliseconds: scrollMomentum.tailWindowMilliseconds

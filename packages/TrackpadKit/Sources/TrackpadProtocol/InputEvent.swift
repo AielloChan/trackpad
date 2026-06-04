@@ -22,6 +22,7 @@ public enum InputEventKind: Codable, Equatable, Sendable {
     case pointerButton(PointerButtonEvent)
     case tap(TapEvent)
     case scroll(ScrollEvent)
+    case magnify(MagnifyEvent)
     case systemAction(SystemActionEvent)
     case contact(ContactEvent)
 }
@@ -48,9 +49,30 @@ public struct PointerButtonEvent: Codable, Equatable, Sendable {
 
 public struct TapEvent: Codable, Equatable, Sendable {
     public let button: PointerButton
+    public let clickCount: Int
 
-    public init(button: PointerButton) {
+    public init(button: PointerButton, clickCount: Int = 1) {
         self.button = button
+        self.clickCount = min(max(clickCount, 1), 3)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case button
+        case clickCount
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        button = try container.decode(PointerButton.self, forKey: .button)
+        clickCount = min(max(try container.decodeIfPresent(Int.self, forKey: .clickCount) ?? 1, 1), 3)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(button, forKey: .button)
+        if clickCount != 1 {
+            try container.encode(clickCount, forKey: .clickCount)
+        }
     }
 }
 
@@ -65,6 +87,16 @@ public struct ScrollEvent: Codable, Equatable, Sendable {
         self.dy = dy
         self.phase = phase
         self.momentumPhase = momentumPhase
+    }
+}
+
+public struct MagnifyEvent: Codable, Equatable, Sendable {
+    public let magnification: Double
+    public let phase: ScrollPhase
+
+    public init(magnification: Double, phase: ScrollPhase) {
+        self.magnification = magnification
+        self.phase = phase
     }
 }
 

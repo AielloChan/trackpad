@@ -1,8 +1,11 @@
 # macOS Double-Click State Plan
 
-**Goal:** Make consecutive iOS single-finger taps behave like native macOS double-clicks so text selection and other double-click actions work.
+**Goal:** Make explicit iOS double-tap gestures behave like native macOS double-clicks so text selection and other double-click actions work.
 
-**Architecture:** Keep the iOS protocol as semantic `tap` events. The macOS host maps consecutive taps into mouse click counts using the host system double-click interval, then injects CoreGraphics mouse events with the matching click state.
+**Architecture:** Keep the iOS protocol as semantic `tap` events, but carry an explicit click count. The iOS mapper marks a second tap after the tap-drag window as `clickCount=2`; the macOS host injects CoreGraphics mouse events with that click state and does not promote ordinary consecutive taps on its own. A second tap inside the tap-drag window stays `clickCount=1` unless it moves into `TapThenDrag`, which avoids accidental double-clicks when the user meant to single-click.
+
+**Follow-up:** On 2026-05-29, host-side automatic promotion was removed after real-device testing showed ordinary single taps could be treated as double-clicks too broadly.
+**Follow-up:** On 2026-06-04, iOS-side double-click promotion was separated from the tap-drag candidate window after logs showed `tap(clickCount=1)` immediately followed by `tap(clickCount=2)` for accidental quick second touches.
 
 ## References
 

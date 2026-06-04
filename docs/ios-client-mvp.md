@@ -87,11 +87,11 @@ Frames are encoded with the shared `SessionFrameLineCodec` from `TrackpadKit`.
 - Scroll momentum uses a host-side seed tracker that preserves the gesture's dominant axis, so final cross-axis jitter before release does not erase vertical or horizontal inertial scrolling.
 - The iOS app receives low-frequency `configurationSync` frames for pointer, gesture, and scroll momentum tuning.
 - `InputEventTuning` scales pointer movement on the iOS client before transport. The default pointer multiplier is `2.1x`; the visible tuning control lives in the macOS host app.
-- Scroll momentum is synthesized on macOS with tunable amount, decay rate, and tail velocity window. Defaults are amount `5.0x`, decay `0.95`, and tail window `140 ms`; tuning ranges are amount `0...12x`, decay `0.72...0.995`, and tail window `30...500 ms`. The host normalizes momentum by frame interval so 120 Hz displays get more, smaller updates while preserving similar total distance.
+- Scroll momentum is synthesized on macOS with a host-side enable switch plus tunable amount, decay rate, and tail velocity window. Defaults are enabled, amount `5.0x`, decay `0.95`, and tail window `140 ms`; tuning ranges are amount `0...12x`, decay `0.72...0.995`, and tail window `30...500 ms`. The host estimates release velocity from the actual tail sample span and integrates exponential decay against real elapsed time one frame at a time.
 - The macOS host edits the tuning settings; configuration sync applies changed snapshots on both endpoints without echoing identical values back.
 - The macOS scroll injector marks scroll events as continuous, sets CoreGraphics scroll phase and momentum phase fields, and preserves subpixel residuals for integer wheel deltas.
 - The macOS input mapper tracks pressed buttons and emits dragged mouse commands while the left button is held down, so host injection uses `leftMouseDragged` instead of `mouseMoved` during window drag.
-- The macOS input mapper tracks consecutive tap events with the system double-click interval and injects CoreGraphics mouse events with the matching click state, so two quick iOS taps can trigger native macOS double-click selection.
+- Tap events carry an explicit click count. Ordinary single taps stay `clickCount=1`; a second tap after the tap-drag window can send `clickCount=2` so macOS can inject native double-click selection without host-side guessing. A second tap inside the tap-drag window stays single-click unless it moves into `TapThenDrag`.
 - `NSLocalNetworkUsageDescription` and `NSBonjourServices` are configured for local TCP access and browsing.
 - Debug simulator automation can be enabled with `TRACKPAD_AUTOCONNECT=1` for manual defaults, or `TRACKPAD_AUTOCONNECT_DISCOVERED=1` for Bonjour discovery. `TRACKPAD_SEND_SAMPLE_MOVE=1` sends one pointer move after connection.
 
@@ -101,7 +101,7 @@ Frames are encoded with the shared `SessionFrameLineCodec` from `TrackpadKit`.
 - One-finger hold-and-move is pointer movement, not drag.
 - Drag currently starts when a single-finger tap is followed quickly by a second press and movement past the drag threshold; real-device timing tuning is still needed.
 - Gesture timing settings are currently in-memory only and reset on app restart.
-- Scroll momentum is a synthetic decay sequence from the macOS host with user-tunable amount, decay, and tail-window settings. It now supports longer inertial tails, but still needs real-device comparison against Magic Trackpad physics.
+- Scroll momentum is a synthetic exponential velocity decay from the macOS host with a desktop enable switch and user-tunable amount, decay, and tail-window settings. It now avoids precomputing long momentum queues, but still needs real-device comparison against Magic Trackpad physics.
 - Scroll phase and momentum fields are now injected on macOS, but native-trackpad parity still requires real-device tuning.
 - Pointer speed and momentum settings are in-memory only and reset on app restart.
 - The connection panel is shown while disconnected; the connected surface is black.
@@ -140,14 +140,15 @@ two-finger movement -> scroll began / changed / ended
 two-finger scroll ending with one remaining contact -> scroll ended, no left click
 single-finger tap within 80 ms after two-finger scroll release -> no left click
 single-finger tap after the 80 ms suppression window -> left click
-host scroll momentum synthesizer -> decaying changed steps plus final ended step
+host scroll momentum synthesizer -> frame-by-frame exponential changed steps plus final ended step
 host scroll momentum synthesizer -> preserves vertical velocity after a final horizontal jitter sample
 host scroll momentum synthesizer -> preserves horizontal velocity for intentional horizontal scroll
 momentum scroll event -> scroll event with momentumPhase
 left button down + pointer move on macOS host -> dragged mouse command
 scroll with momentumPhase on macOS host -> scroll command preserving phase metadata
-two tap events inside the macOS double-click interval -> second click uses clickCount 2
-two tap events outside the macOS double-click interval -> clickCount resets to 1
+quick second tap inside the tap-drag window without movement -> second tap stays clickCount 1
+second tap after the tap-drag window -> second tap can use clickCount 2
+ordinary consecutive tap events -> stay clickCount 1 unless the client explicitly marks a double-click
 ```
 
 The latest gesture polish verification also includes:

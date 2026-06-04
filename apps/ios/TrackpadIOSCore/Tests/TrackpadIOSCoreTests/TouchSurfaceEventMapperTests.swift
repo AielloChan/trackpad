@@ -233,6 +233,75 @@ import TrackpadKit
     #expect(flushed.isEmpty)
 }
 
+@Test func tapThenQuickSecondTapInsideDragWindowStaysSingleClick() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 0, y: 0)),
+    ])
+
+    currentTime = 100_000_000
+    _ = mapper.end(with: [])
+    currentTime = 180_000_000
+    _ = mapper.begin(with: [
+        TouchContact(id: 2, point: TouchPoint(x: 0, y: 0)),
+    ])
+    currentTime = 230_000_000
+    let secondEnd = mapper.end(with: [])
+    currentTime = 370_000_000
+    let flushed = mapper.flushExpiredPendingEvents()
+
+    #expect(secondEnd == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 100_000_000,
+            kind: .tap(TapEvent(button: .left))
+        ),
+    ])
+    #expect(flushed == [
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 230_000_000,
+            kind: .tap(TapEvent(button: .left))
+        ),
+    ])
+}
+
+@Test func tapThenSecondTapAfterDragWindowEmitsExplicitDoubleClick() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 0, y: 0)),
+    ])
+
+    currentTime = 100_000_000
+    _ = mapper.end(with: [])
+    currentTime = 250_000_000
+    let secondBegin = mapper.begin(with: [
+        TouchContact(id: 2, point: TouchPoint(x: 0, y: 0)),
+    ])
+    currentTime = 300_000_000
+    let secondEnd = mapper.end(with: [])
+    currentTime = 440_000_000
+    let flushed = mapper.flushExpiredPendingEvents()
+
+    #expect(secondBegin == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 100_000_000,
+            kind: .tap(TapEvent(button: .left))
+        ),
+    ])
+    #expect(secondEnd.isEmpty)
+    #expect(flushed == [
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 300_000_000,
+            kind: .tap(TapEvent(button: .left, clickCount: 2))
+        ),
+    ])
+}
+
 @Test func tapThenSecondPressAfterDefaultDragWindowDoesNotStartDrag() {
     var currentTime: UInt64 = 0
     var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
@@ -443,6 +512,202 @@ import TrackpadKit
             sequenceNumber: 2,
             timestampNanos: 200,
             kind: .scroll(ScrollEvent(dx: 0, dy: 9, phase: .changed))
+        ),
+    ])
+    #expect(ended == [
+        InputEvent(
+            sequenceNumber: 3,
+            timestampNanos: 300,
+            kind: .scroll(ScrollEvent(dx: 0, dy: 0, phase: .ended))
+        ),
+    ])
+}
+
+@Test func twoFingerPinchOutEmitsMagnifyWithPhases() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 10, y: 10)),
+        TouchContact(id: 2, point: TouchPoint(x: 30, y: 10)),
+    ])
+
+    currentTime = 100
+    let firstMove = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 5, y: 10)),
+        TouchContact(id: 2, point: TouchPoint(x: 35, y: 10)),
+    ])
+    currentTime = 200
+    let secondMove = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 0, y: 10)),
+        TouchContact(id: 2, point: TouchPoint(x: 40, y: 10)),
+    ])
+    currentTime = 300
+    let ended = mapper.end(with: [])
+
+    #expect(firstMove == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 100,
+            kind: .magnify(MagnifyEvent(magnification: 0.5, phase: .began))
+        ),
+    ])
+    #expect(secondMove == [
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 200,
+            kind: .magnify(MagnifyEvent(magnification: 1.0 / 3.0, phase: .changed))
+        ),
+    ])
+    #expect(ended == [
+        InputEvent(
+            sequenceNumber: 3,
+            timestampNanos: 300,
+            kind: .magnify(MagnifyEvent(magnification: 0, phase: .ended))
+        ),
+    ])
+}
+
+@Test func twoFingerPinchOutWithCentroidDriftStillEmitsMagnify() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 10, y: 10)),
+        TouchContact(id: 2, point: TouchPoint(x: 30, y: 10)),
+    ])
+
+    currentTime = 100
+    let firstMove = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 4, y: 10)),
+        TouchContact(id: 2, point: TouchPoint(x: 56, y: 10)),
+    ])
+    currentTime = 200
+    let ended = mapper.end(with: [])
+
+    #expect(firstMove == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 100,
+            kind: .magnify(MagnifyEvent(magnification: 1.6, phase: .began))
+        ),
+    ])
+    #expect(ended == [
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 200,
+            kind: .magnify(MagnifyEvent(magnification: 0, phase: .ended))
+        ),
+    ])
+}
+
+@Test func twoFingerScrollStartupWithNaturalFingerSpacingChangeStaysScroll() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 0, y: 20)),
+        TouchContact(id: 2, point: TouchPoint(x: 120, y: 20)),
+    ])
+
+    currentTime = 100
+    let firstMove = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 6, y: 30)),
+        TouchContact(id: 2, point: TouchPoint(x: 110, y: 34)),
+    ])
+    currentTime = 200
+    let secondMove = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 8, y: 42)),
+        TouchContact(id: 2, point: TouchPoint(x: 111, y: 46)),
+    ])
+    currentTime = 300
+    let ended = mapper.end(with: [])
+
+    #expect(firstMove == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 100,
+            kind: .scroll(ScrollEvent(dx: -2, dy: 12, phase: .began))
+        ),
+    ])
+    #expect(secondMove == [
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 200,
+            kind: .scroll(ScrollEvent(dx: 1.5, dy: 12, phase: .changed))
+        ),
+    ])
+    #expect(ended == [
+        InputEvent(
+            sequenceNumber: 3,
+            timestampNanos: 300,
+            kind: .scroll(ScrollEvent(dx: 0, dy: 0, phase: .ended))
+        ),
+    ])
+}
+
+@Test func twoFingerPinchInEmitsNegativeMagnify() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 0, y: 10)),
+        TouchContact(id: 2, point: TouchPoint(x: 40, y: 10)),
+    ])
+
+    currentTime = 100
+    let firstMove = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 10, y: 10)),
+        TouchContact(id: 2, point: TouchPoint(x: 30, y: 10)),
+    ])
+    currentTime = 200
+    let ended = mapper.end(with: [])
+
+    #expect(firstMove == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 100,
+            kind: .magnify(MagnifyEvent(magnification: -0.5, phase: .began))
+        ),
+    ])
+    #expect(ended == [
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 200,
+            kind: .magnify(MagnifyEvent(magnification: 0, phase: .ended))
+        ),
+    ])
+}
+
+@Test func twoFingerPanWithDistanceJitterLocksToScrollInsteadOfMagnify() {
+    var currentTime: UInt64 = 0
+    var mapper = TouchSurfaceEventMapper(timestampProvider: { currentTime })
+    _ = mapper.begin(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 0, y: 20)),
+        TouchContact(id: 2, point: TouchPoint(x: 40, y: 20)),
+    ])
+
+    currentTime = 100
+    let firstMove = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 3, y: 20)),
+        TouchContact(id: 2, point: TouchPoint(x: 52, y: 20)),
+    ])
+    currentTime = 200
+    let secondMove = mapper.move(with: [
+        TouchContact(id: 1, point: TouchPoint(x: 8, y: 20)),
+        TouchContact(id: 2, point: TouchPoint(x: 60, y: 20)),
+    ])
+    currentTime = 300
+    let ended = mapper.end(with: [])
+
+    #expect(firstMove == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 100,
+            kind: .scroll(ScrollEvent(dx: 7.5, dy: 0, phase: .began))
+        ),
+    ])
+    #expect(secondMove == [
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 200,
+            kind: .scroll(ScrollEvent(dx: 6.5, dy: 0, phase: .changed))
         ),
     ])
     #expect(ended == [

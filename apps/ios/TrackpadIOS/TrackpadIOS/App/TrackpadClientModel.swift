@@ -25,6 +25,7 @@ final class TrackpadClientModel: ObservableObject {
     @Published private(set) var tapMaximumDurationMilliseconds = TrackpadConfiguration.defaults.gestures.tapMaximumDurationMilliseconds
     @Published private(set) var tapDragMaximumIntervalMilliseconds = TrackpadConfiguration.defaults.gestures.tapDragMaximumIntervalMilliseconds
     @Published private(set) var scrollReleaseTapSuppressionMilliseconds = TrackpadConfiguration.defaults.gestures.scrollReleaseTapSuppressionMilliseconds
+    @Published private(set) var isScrollMomentumEnabled = TrackpadConfiguration.defaults.scrollMomentum.isEnabled
     @Published private(set) var scrollMomentumAmount = TrackpadConfiguration.defaults.scrollMomentum.amount
     @Published private(set) var scrollMomentumDecayRate = TrackpadConfiguration.defaults.scrollMomentum.decayRate
     @Published private(set) var scrollMomentumTailWindowMilliseconds = TrackpadConfiguration.defaults.scrollMomentum.tailWindowMilliseconds
@@ -402,6 +403,7 @@ final class TrackpadClientModel: ObservableObject {
         tapMaximumDurationMilliseconds = configuration.gestures.tapMaximumDurationMilliseconds
         tapDragMaximumIntervalMilliseconds = configuration.gestures.tapDragMaximumIntervalMilliseconds
         scrollReleaseTapSuppressionMilliseconds = configuration.gestures.scrollReleaseTapSuppressionMilliseconds
+        isScrollMomentumEnabled = configuration.scrollMomentum.isEnabled
         scrollMomentumAmount = configuration.scrollMomentum.amount
         scrollMomentumDecayRate = configuration.scrollMomentum.decayRate
         scrollMomentumTailWindowMilliseconds = configuration.scrollMomentum.tailWindowMilliseconds
@@ -587,7 +589,7 @@ private extension Array where Element == InputEvent {
             switch event.kind {
             case .pointerMove, .pointerButton, .tap:
                 return true
-            case .scroll, .systemAction, .contact:
+            case .scroll, .magnify, .systemAction, .contact:
                 return false
             }
         }
@@ -605,9 +607,11 @@ private extension Array where Element == InputEvent {
             case .pointerButton(let button):
                 return "seq=\(event.sequenceNumber):button(\(button.button.rawValue),\(button.phase.rawValue))"
             case .tap(let tap):
-                return "seq=\(event.sequenceNumber):tap(\(tap.button.rawValue))"
+                return "seq=\(event.sequenceNumber):tap(\(tap.button.rawValue),clickCount=\(tap.clickCount))"
             case .scroll(let scroll):
                 return "seq=\(event.sequenceNumber):scroll(dx=\(String(format: "%.3f", scroll.dx)),dy=\(String(format: "%.3f", scroll.dy)),phase=\(scroll.phase.rawValue),momentum=\(scroll.momentumPhase?.rawValue ?? "none"))"
+            case .magnify(let magnify):
+                return "seq=\(event.sequenceNumber):magnify(magnification=\(String(format: "%.3f", magnify.magnification)),phase=\(magnify.phase.rawValue))"
             case .systemAction(let systemAction):
                 return "seq=\(event.sequenceNumber):systemAction(\(systemAction.action.rawValue))"
             case .contact(let contact):

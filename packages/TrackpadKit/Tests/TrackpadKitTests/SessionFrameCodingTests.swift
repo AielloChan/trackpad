@@ -108,6 +108,7 @@ import Testing
 @Test func scrollMomentumSettingsFrameRoundTripsThroughJSON() throws {
     let frame = SessionFrame.scrollMomentumSettings(
         ScrollMomentumSettings(
+            isEnabled: false,
             amount: 1.4,
             decayRate: 0.9,
             tailWindowMilliseconds: 120
@@ -118,6 +119,29 @@ import Testing
     let decoded = try JSONDecoder().decode(SessionFrame.self, from: data)
 
     #expect(decoded == frame)
+}
+
+@Test func scrollMomentumSettingsDecodesMissingEnabledAsTrue() throws {
+    let data = Data("""
+    {
+      "scrollMomentumSettings": {
+        "_0": {
+          "amount": 1.4,
+          "decayRate": 0.9,
+          "tailWindowMilliseconds": 120
+        }
+      }
+    }
+    """.utf8)
+
+    let decoded = try JSONDecoder().decode(SessionFrame.self, from: data)
+
+    #expect(decoded == .scrollMomentumSettings(ScrollMomentumSettings(
+        isEnabled: true,
+        amount: 1.4,
+        decayRate: 0.9,
+        tailWindowMilliseconds: 120
+    )))
 }
 
 @Test func configurationSyncFrameRoundTripsThroughJSON() throws {

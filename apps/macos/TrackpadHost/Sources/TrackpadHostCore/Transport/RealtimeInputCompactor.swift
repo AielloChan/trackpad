@@ -68,6 +68,8 @@ private extension InputEvent {
             return true
         case .scroll(let scroll):
             return scroll.phase == .changed
+        case .magnify(let magnify):
+            return magnify.phase == .changed
         case .pointerButton, .tap, .systemAction, .contact:
             return false
         }
@@ -96,6 +98,16 @@ private extension InputEvent {
                     dy: scroll.dy + nextScroll.dy,
                     phase: nextScroll.phase,
                     momentumPhase: nextScroll.momentumPhase
+                ))
+            )
+        case (.magnify(let magnify), .magnify(let nextMagnify))
+            where magnify.phase == .changed && nextMagnify.phase == .changed:
+            return InputEvent(
+                sequenceNumber: next.sequenceNumber,
+                timestampNanos: next.timestampNanos,
+                kind: .magnify(MagnifyEvent(
+                    magnification: magnify.magnification + nextMagnify.magnification,
+                    phase: nextMagnify.phase
                 ))
             )
         default:

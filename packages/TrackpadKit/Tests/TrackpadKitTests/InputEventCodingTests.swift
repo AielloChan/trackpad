@@ -32,13 +32,21 @@ import Testing
     let event = InputEvent(
         sequenceNumber: 44,
         timestampNanos: 1_000_002,
-        kind: .tap(TapEvent(button: .right))
+        kind: .tap(TapEvent(button: .right, clickCount: 2))
     )
 
     let data = try JSONEncoder().encode(event)
     let decoded = try JSONDecoder().decode(InputEvent.self, from: data)
 
     #expect(decoded == event)
+}
+
+@Test func tapEventDecodesMissingClickCountAsSingleClick() throws {
+    let data = Data(#"{"button":"left"}"#.utf8)
+
+    let decoded = try JSONDecoder().decode(TapEvent.self, from: data)
+
+    #expect(decoded == TapEvent(button: .left))
 }
 
 @Test func scrollEventRoundTripsThroughJSON() throws {
@@ -70,6 +78,19 @@ import Testing
 
     #expect(decoded == ScrollEvent(dx: 0, dy: -8, phase: .changed))
     #expect(decoded.momentumPhase == nil)
+}
+
+@Test func magnifyEventRoundTripsThroughJSON() throws {
+    let event = InputEvent(
+        sequenceNumber: 48,
+        timestampNanos: 1_000_006,
+        kind: .magnify(MagnifyEvent(magnification: 0.125, phase: .changed))
+    )
+
+    let data = try JSONEncoder().encode(event)
+    let decoded = try JSONDecoder().decode(InputEvent.self, from: data)
+
+    #expect(decoded == event)
 }
 
 @Test func systemActionEventRoundTripsThroughJSON() throws {

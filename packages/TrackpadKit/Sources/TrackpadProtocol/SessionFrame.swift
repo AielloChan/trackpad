@@ -117,6 +117,7 @@ public struct ClientLogUpload: Codable, Equatable, Sendable {
 }
 
 public struct ScrollMomentumSettings: Codable, Equatable, Sendable {
+    public let isEnabled: Bool
     public let amount: Double
     public let decayRate: Double
     public let tailWindowMilliseconds: Double
@@ -126,8 +127,38 @@ public struct ScrollMomentumSettings: Codable, Equatable, Sendable {
         decayRate: Double,
         tailWindowMilliseconds: Double
     ) {
+        self.init(
+            isEnabled: true,
+            amount: amount,
+            decayRate: decayRate,
+            tailWindowMilliseconds: tailWindowMilliseconds
+        )
+    }
+
+    public init(
+        isEnabled: Bool,
+        amount: Double,
+        decayRate: Double,
+        tailWindowMilliseconds: Double
+    ) {
+        self.isEnabled = isEnabled
         self.amount = amount
         self.decayRate = decayRate
         self.tailWindowMilliseconds = tailWindowMilliseconds
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case isEnabled
+        case amount
+        case decayRate
+        case tailWindowMilliseconds
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+        amount = try container.decode(Double.self, forKey: .amount)
+        decayRate = try container.decode(Double.self, forKey: .decayRate)
+        tailWindowMilliseconds = try container.decode(Double.self, forKey: .tailWindowMilliseconds)
     }
 }

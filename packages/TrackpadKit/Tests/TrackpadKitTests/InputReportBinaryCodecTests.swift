@@ -30,11 +30,35 @@ import Testing
     #expect(decoded.inputEvent == event)
 }
 
+@Test func tapReportPreservesClickCount() throws {
+    let event = InputEvent(
+        sequenceNumber: 13,
+        timestampNanos: 1_600,
+        kind: .tap(TapEvent(button: .left, clickCount: 2))
+    )
+
+    let decoded = try InputReportBinaryCodec.decode(InputReportBinaryCodec.encode(try InputReport(event: event)))
+
+    #expect(decoded.inputEvent == event)
+}
+
 @Test func systemActionReportPreservesAction() throws {
     let event = InputEvent(
         sequenceNumber: 10,
         timestampNanos: 1_300,
         kind: .systemAction(SystemActionEvent(action: .hideDesktop))
+    )
+
+    let decoded = try InputReportBinaryCodec.decode(InputReportBinaryCodec.encode(try InputReport(event: event)))
+
+    #expect(decoded.inputEvent == event)
+}
+
+@Test func magnifyReportPreservesMagnificationAndPhase() throws {
+    let event = InputEvent(
+        sequenceNumber: 12,
+        timestampNanos: 1_500,
+        kind: .magnify(MagnifyEvent(magnification: -0.125, phase: .changed))
     )
 
     let decoded = try InputReportBinaryCodec.decode(InputReportBinaryCodec.encode(try InputReport(event: event)))

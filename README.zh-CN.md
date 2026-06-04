@@ -22,6 +22,7 @@ git@github.com:AielloChan/trackpad.git
 - 轻点、快速二次按下并移动触发拖拽。
 - 双指轻点右键点击。
 - 双指滚动，不再由客户端生成惯性滚动。
+- 双指捏合/展开会发送平台无关的缩放事件；当前 macOS host 映射为带当前光标位置的修饰滚轮缩放后备实现。
 - 右侧边缘向内滑动，并且抬起前出现过双指触点时，打开 macOS 通知中心；随后双指右扫可关闭通知中心。
 - 三指上/下/左/右滑动触发 Mission Control、App Expose 和 Spaces 切换。
 - 四指抓握/释放支持 Launchpad 和显示桌面的状态过渡。

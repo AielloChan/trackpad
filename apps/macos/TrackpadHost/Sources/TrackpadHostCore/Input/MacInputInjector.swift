@@ -8,6 +8,7 @@ public struct MacInputInjector: Sendable {
     private let logger: any HostLogging
     private let displayBoundsProvider: @Sendable () -> [CGRect]
     private let scrollWheelQuantizer = LockedScrollWheelIntegerDeltaQuantizer()
+    private let magnifyScrollQuantizer = LockedMagnifyScrollDeltaQuantizer()
 
     public init(
         logger: any HostLogging = DisabledHostLogger(),
@@ -27,6 +28,8 @@ public struct MacInputInjector: Sendable {
             postButton(button, phase: phase, clickCount: clickCount)
         case .scroll(let dx, let dy, let phase, let momentumPhase):
             postScroll(dx: dx, dy: dy, phase: phase, momentumPhase: momentumPhase)
+        case .magnify(let magnification, let phase):
+            postMagnify(magnification: magnification, phase: phase)
         case .systemAction(let action):
             postSystemAction(action)
         }
@@ -82,6 +85,30 @@ public struct MacInputInjector: Sendable {
         event?.setDoubleValueField(.scrollWheelEventPointDeltaAxis1, value: dy)
         event?.setDoubleValueField(.scrollWheelEventPointDeltaAxis2, value: dx)
         event?.post(tap: .cghidEventTap)
+    }
+
+    private func postMagnify(magnification: Double, phase: ScrollPhase) {
+        let delta = magnifyScrollQuantizer.integerDelta(magnification: magnification, phase: phase)
+        guard delta != 0 || phase == .ended else {
+            return
+        }
+
+        let location = currentPointerLocation()
+        logger.debug(category: "input", "magnify scroll delta=\(delta) phase=\(phase.rawValue) x=\(location.x) y=\(location.y)")
+        let event = CGEvent(
+            scrollWheelEvent2Source: nil,
+            units: .pixel,
+            wheelCount: 1,
+            wheel1: Int32(delta),
+            wheel2: 0,
+            wheel3: 0
+        )
+        event?.flags = CGEventFlags.maskControl
+        event?.location = location
+        event?.setIntegerValueField(CGEventField.scrollWheelEventIsContinuous, value: 1)
+        event?.setIntegerValueField(CGEventField.scrollWheelEventScrollPhase, value: phase.cgScrollPhaseValue)
+        event?.setDoubleValueField(CGEventField.scrollWheelEventPointDeltaAxis1, value: Double(delta))
+        event?.post(tap: CGEventTapLocation.cghidEventTap)
     }
 
     private func currentPointerLocation() -> CGPoint {

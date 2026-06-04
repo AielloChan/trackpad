@@ -28,6 +28,7 @@ Phase 1 is functionally usable for local LAN testing:
 - Tap, quick second press, and movement for drag.
 - Two-finger tap for right click.
 - Two-finger scroll with macOS-generated inertial momentum configured from the macOS host app.
+- Two-finger pinch/spread emits a platform-neutral magnify event; the current macOS host maps it to a cursor-located modified scroll zoom fallback.
 - Touching the iOS surface again immediately interrupts host-generated inertial scrolling.
 - Right-edge inward swipe with two contacts before release opens macOS Notification Center; a following two-finger right swipe closes it.
 - Three-finger swipe up/down/left/right for Mission Control, App Expose, and Spaces navigation, gated by the host Mac's current three-finger trackpad settings.
@@ -39,7 +40,7 @@ Phase 1 is functionally usable for local LAN testing:
 - iOS sends high-frequency input as compact HID-like 32-byte binary reports.
 - iOS and macOS sync tuning settings through a low-frequency configuration control channel.
 - Pending pointer and compatible scroll changed reports are coalesced while a previous send is still in flight.
-- macOS host input injection for movement, click, drag, scroll phase, momentum phase, and double-click click state.
+- macOS host input injection for movement, click, drag, scroll phase, momentum phase, and explicit double-click click state.
 - macOS host accepts binary input reports and JSON control frames on the same session stream.
 - Persistent macOS host logs at `~/Library/Logs/Trackpad/host.log`.
 - Host-triggered iOS/iPadOS diagnostic log uploads to `~/Library/Logs/Trackpad/client-logs/`.

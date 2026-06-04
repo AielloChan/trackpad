@@ -37,14 +37,14 @@ public enum InputReportBinaryCodec {
             data.append(phase.reportRawValue)
             data.append(0)
             data.append(0)
-        case .tap(let button):
+        case .tap(let button, let clickCount):
             data.append(3)
             data.append(0)
             appendCommonFields(report, to: &data)
             appendFixedPoint(0, to: &data)
             appendFixedPoint(0, to: &data)
             data.append(button.reportRawValue)
-            data.append(0)
+            data.append(clampedUInt8(clickCount))
             data.append(0)
             data.append(0)
         case .scroll(let dx, let dy, let phase, let momentumPhase):
@@ -56,6 +56,16 @@ public enum InputReportBinaryCodec {
             data.append(0)
             data.append(phase.reportRawValue)
             data.append(momentumPhase?.reportRawValue ?? 0)
+            data.append(0)
+        case .magnify(let magnification, let phase):
+            data.append(7)
+            data.append(0)
+            appendCommonFields(report, to: &data)
+            appendFixedPoint(magnification, to: &data)
+            appendFixedPoint(0, to: &data)
+            data.append(0)
+            data.append(phase.reportRawValue)
+            data.append(0)
             data.append(0)
         case .systemAction(let action):
             data.append(5)
@@ -122,7 +132,10 @@ public enum InputReportBinaryCodec {
             return InputReport(
                 sequenceNumber: sequenceNumber,
                 timestampNanos: timestampNanos,
-                kind: .tap(button: try PointerButton(reportRawValue: buttonRaw))
+                kind: .tap(
+                    button: try PointerButton(reportRawValue: buttonRaw),
+                    clickCount: max(Int(phaseRaw), 1)
+                )
             )
         case 4:
             return InputReport(
@@ -148,6 +161,15 @@ public enum InputReportBinaryCodec {
                 kind: .contact(
                     phase: try ContactPhase(reportRawValue: phaseRaw),
                     contactCount: Int(buttonRaw)
+                )
+            )
+        case 7:
+            return InputReport(
+                sequenceNumber: sequenceNumber,
+                timestampNanos: timestampNanos,
+                kind: .magnify(
+                    magnification: dx,
+                    phase: try ScrollPhase(reportRawValue: phaseRaw)
                 )
             )
         default:

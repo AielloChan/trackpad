@@ -121,7 +121,7 @@ public final class TrackpadHostClient: @unchecked Sendable {
                 return
             }
 
-            if reports.containsScrollReport || reports.containsSystemActionReport {
+            if reports.containsScrollReport || reports.containsMagnifyReport || reports.containsSystemActionReport {
                 self.inputReportDiagnosticHandler?("enqueue reports=\(reports.reportDiagnosticSummary)")
             }
 
@@ -200,7 +200,7 @@ public final class TrackpadHostClient: @unchecked Sendable {
             return
         }
 
-        if reports.containsScrollReport || reports.containsSystemActionReport {
+        if reports.containsScrollReport || reports.containsMagnifyReport || reports.containsSystemActionReport {
             inputReportDiagnosticHandler?("send batch count=\(reports.count) reports=\(reports.reportDiagnosticSummary)")
         }
 
@@ -384,6 +384,16 @@ private extension Array where Element == InputReport {
         }
     }
 
+    var containsMagnifyReport: Bool {
+        contains { report in
+            if case .magnify = report.kind {
+                return true
+            }
+
+            return false
+        }
+    }
+
     var reportDiagnosticSummary: String {
         map { report in
             switch report.kind {
@@ -391,10 +401,12 @@ private extension Array where Element == InputReport {
                 return "seq=\(report.sequenceNumber):pointer"
             case .pointerButton(let button, let phase):
                 return "seq=\(report.sequenceNumber):button(\(button.rawValue),\(phase.rawValue))"
-            case .tap(let button):
-                return "seq=\(report.sequenceNumber):tap(\(button.rawValue))"
+            case .tap(let button, let clickCount):
+                return "seq=\(report.sequenceNumber):tap(\(button.rawValue),clickCount=\(clickCount))"
             case .scroll(let dx, let dy, let phase, let momentumPhase):
                 return "seq=\(report.sequenceNumber):scroll(dx=\(String(format: "%.3f", dx)),dy=\(String(format: "%.3f", dy)),phase=\(phase.rawValue),momentum=\(momentumPhase?.rawValue ?? "none"))"
+            case .magnify(let magnification, let phase):
+                return "seq=\(report.sequenceNumber):magnify(magnification=\(String(format: "%.3f", magnification)),phase=\(phase.rawValue))"
             case .systemAction(let action):
                 return "seq=\(report.sequenceNumber):systemAction(\(action.rawValue))"
             case .contact(let phase, let contactCount):
@@ -622,6 +634,8 @@ private extension InputReport {
             return true
         case .scroll(_, _, let phase, _):
             return phase == .changed
+        case .magnify(_, let phase):
+            return phase == .changed
         case .pointerButton, .tap, .systemAction, .contact:
             return false
         }
@@ -648,6 +662,15 @@ private extension InputReport {
                     phase: nextPhase,
                     momentumPhase: nextMomentumPhase
                 )
+            )
+        case (
+            .magnify(let magnification, let phase),
+            .magnify(let nextMagnification, let nextPhase)
+        ) where phase == .changed && nextPhase == .changed:
+            return InputReport(
+                sequenceNumber: next.sequenceNumber,
+                timestampNanos: next.timestampNanos,
+                kind: .magnify(magnification: magnification + nextMagnification, phase: nextPhase)
             )
         default:
             return nil

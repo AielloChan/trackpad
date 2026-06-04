@@ -20,7 +20,7 @@ public struct InputReport: Equatable, Sendable {
         case .pointerButton(let button):
             self.kind = .pointerButton(button: button.button, phase: button.phase)
         case .tap(let tap):
-            self.kind = .tap(button: tap.button)
+            self.kind = .tap(button: tap.button, clickCount: tap.clickCount)
         case .scroll(let scroll):
             self.kind = .scroll(
                 dx: scroll.dx,
@@ -28,6 +28,8 @@ public struct InputReport: Equatable, Sendable {
                 phase: scroll.phase,
                 momentumPhase: scroll.momentumPhase
             )
+        case .magnify(let magnify):
+            self.kind = .magnify(magnification: magnify.magnification, phase: magnify.phase)
         case .systemAction(let systemAction):
             self.kind = .systemAction(action: systemAction.action)
         case .contact(let contact):
@@ -42,10 +44,12 @@ public struct InputReport: Equatable, Sendable {
             eventKind = .pointerMove(PointerMoveEvent(dx: dx, dy: dy))
         case .pointerButton(let button, let phase):
             eventKind = .pointerButton(PointerButtonEvent(button: button, phase: phase))
-        case .tap(let button):
-            eventKind = .tap(TapEvent(button: button))
+        case .tap(let button, let clickCount):
+            eventKind = .tap(TapEvent(button: button, clickCount: clickCount))
         case .scroll(let dx, let dy, let phase, let momentumPhase):
             eventKind = .scroll(ScrollEvent(dx: dx, dy: dy, phase: phase, momentumPhase: momentumPhase))
+        case .magnify(let magnification, let phase):
+            eventKind = .magnify(MagnifyEvent(magnification: magnification, phase: phase))
         case .systemAction(let action):
             eventKind = .systemAction(SystemActionEvent(action: action))
         case .contact(let phase, let contactCount):
@@ -63,8 +67,9 @@ public struct InputReport: Equatable, Sendable {
 public enum InputReportKind: Equatable, Sendable {
     case pointerMove(dx: Double, dy: Double)
     case pointerButton(button: PointerButton, phase: ButtonPhase)
-    case tap(button: PointerButton)
+    case tap(button: PointerButton, clickCount: Int)
     case scroll(dx: Double, dy: Double, phase: ScrollPhase, momentumPhase: ScrollPhase?)
+    case magnify(magnification: Double, phase: ScrollPhase)
     case systemAction(action: SystemAction)
     case contact(phase: ContactPhase, contactCount: Int)
 }

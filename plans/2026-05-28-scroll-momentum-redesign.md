@@ -5,9 +5,9 @@
 **Scope:**
 
 - Track recent finger-driven scroll samples on macOS after they arrive from the iOS client.
-- Build a stable host-side momentum seed from the average tail velocity over a tunable final sample window on the dominant recent axis.
+- Build a stable host-side release velocity from the actual sample span inside a tunable final sample window on the dominant recent axis.
 - Ignore terminal cross-axis or reverse jitter when choosing the seed.
-- Emit short decaying local macOS scroll commands with `momentumPhase`.
+- Emit local macOS scroll commands with `momentumPhase` by integrating an exponential velocity decay frame by frame.
 - Expose momentum amount, decay, and tail-window sliders in the macOS host app, then sync settings to the iOS client when needed.
 
 ## Tasks
@@ -27,10 +27,19 @@
 - [x] Increase host momentum command limits so high-decay tuning can produce a substantially longer inertial tail.
 - [x] Normalize decay, stop threshold, and maximum step count by the host display frame interval so 120 Hz scrolling remains smooth without shortening total distance.
 - [x] Preserve subpixel tail deltas in the CoreGraphics integer wheel fields with residual accumulation.
+- [x] Cancel queued host momentum synchronously on new contact boundaries so old-direction inertia cannot continue while the next touch session starts.
+- [x] Defer host momentum start by a short 2-frame guard window so an immediately following contact boundary can cancel inertia before the first stale momentum step runs.
+- [x] Serialize host momentum cancellation with scheduled momentum execution so no stale momentum command can start after a new contact cancels inertia.
+- [x] Add a macOS host app switch to disable scroll momentum synthesis while preserving tuned amount, decay, and tail-window values.
+- [x] Replace precomputed momentum command queues with one-frame-at-a-time scheduling so host delays do not replay stale backlog.
+- [x] Estimate release velocity from the actual tail sample span instead of dividing by the fixed tail-window duration.
+- [x] Integrate exponential velocity decay over real elapsed time for each emitted frame.
+- [x] Rebase active momentum onto the macOS host-local clock before scheduling frames, while still using input event timestamps only for release velocity estimation.
 
 ## Verification
 
-- [x] Run `swift test` in `apps/macos/TrackpadHost`.
+- [x] Run targeted `MacScrollMomentumSynthesizer` and `HostEventProcessor` tests in `apps/macos/TrackpadHost`.
+- [x] Run full `swift test` in `apps/macos/TrackpadHost`.
 - [x] Run `swift test` in `apps/ios/TrackpadIOSCore`.
 - [x] Run `swift test` in `packages/TrackpadKit`.
 - [x] Build `TrackpadIOS` for iOS Simulator.

@@ -53,7 +53,7 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] iOS pointer speed defaults to 2.1x after real-device tuning.
 - [x] iOS connected bar exposes tap duration, drag interval, and scroll guard timing sliders.
 - [x] iOS tap-drag candidate state no longer suppresses small pointer movements before the drag threshold.
-- [x] macOS host maps consecutive tap events to click counts for double-click selection.
+- [x] macOS host maps explicit tap click counts for double-click selection.
 - [x] macOS injected button events set CoreGraphics mouse click state.
 - [x] Removed iOS scroll momentum seed tracking while momentum is disabled.
 - [x] macOS host writes persistent diagnostic logs for connection, pairing, input, and command mapping.
@@ -99,6 +99,12 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Widen host-side scroll momentum tuning ranges and retune defaults for longer native-like inertial scrolling.
 - [x] Add contact boundary reports so touching the iOS surface immediately cancels host-generated inertial scrolling.
 - [x] Normalize host-side scroll momentum to display frame intervals and carry subpixel wheel deltas into the tail.
+- [x] Cancel queued host-side scroll momentum synchronously when a new contact arrives so stale opposite-direction inertia cannot leak into the next gesture.
+- [x] Add a short host-side momentum start guard so immediately following contact reports can cancel inertia before stale momentum executes.
+- [x] Serialize host-side momentum cancellation with scheduled momentum execution so stale inertia cannot run after a new contact is logged.
+- [x] Add a macOS host app switch to enable or disable host-generated scroll momentum.
+- [x] Replace precomputed momentum command queues with host-side frame-by-frame exponential integration from the estimated release velocity.
+- [x] Use the macOS host-local clock as the inertial scroll time base so client event timestamps do not instantly expire momentum.
 - [x] Remove iOS connected-state tuning sliders and keep the mobile connected bar status-only.
 - [x] Add JSONL-backed trusted-client auto pairing after first short-code pairing.
 - [x] Limit large tap-drag first-move rebasing so drag starts moving immediately without a landing-offset jump.
@@ -114,8 +120,16 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Delay one-finger tap emission until the tap-drag window expires so Mission Control window thumbnails can be dragged between Spaces.
 - [x] Add four-finger inward pinch to open Launchpad.
 - [x] Add stateful four-finger pinch/spread transitions for Launchpad and Show Desktop.
+- [x] Add platform-neutral two-finger pinch/spread magnify events.
+- [x] Add first-pass macOS `PinchZoom` handling through a cursor-located modified scroll fallback.
+- [x] Keep same-direction two-finger pan locked to scroll instead of misclassifying distance jitter as `PinchZoom`.
+- [x] Allow drifted two-finger pinch/spread to classify as `PinchZoom` when distance change strictly dominates centroid movement.
+- [x] Stop promoting ordinary consecutive left taps to double-clicks unless iOS explicitly sends `clickCount=2`.
+- [x] Keep quick second taps inside the tap-drag window as single clicks to avoid accidental explicit double-clicks.
+- [x] Make `PinchZoom` recognition more conservative so natural two-finger scroll startup spacing changes stay as `TwoFingerScroll`.
 - [ ] Manually verify two-finger scroll release no longer causes sudden inertial jumps on a real iPad.
 - [ ] Manually verify two-finger scroll release no longer emits a terminal reverse scroll on a real iPad.
+- [ ] Manually verify `PinchZoom` on a real iPhone/iPad in Safari, Preview, and document views.
 
 ## Near-Term Milestones
 
@@ -173,6 +187,7 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [ ] Manually verify `TapThenDrag` can drag a Mission Control window thumbnail to another Space without first exiting Mission Control.
 - [ ] Manually verify `LaunchpadPinch` opens Launchpad on a real iPhone/iPad.
 - [ ] Manually verify `LaunchpadPinch` and `ShowDesktopSpread` follow the expected normal, Launchpad, and Desktop state transitions on a real iPhone/iPad.
+- [ ] Manually compare the `PinchZoom` fallback against native Apple trackpad zoom behavior.
 
 ## Deferred
 

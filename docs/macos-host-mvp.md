@@ -8,7 +8,7 @@ The macOS host MVP receives platform-neutral input events and maps them to local
 - Requests Accessibility permission.
 - Injects pointer movement through `CGEvent`.
 - Maps pointer button, tap, and scroll protocol events to macOS input commands.
-- Maps consecutive tap events to CoreGraphics mouse click state for native double-click behavior.
+- Maps explicit tap click counts to CoreGraphics mouse click state for native double-click behavior.
 - Receives newline-delimited JSON `SessionFrame` frames over TCP.
 - Requires a valid pairing hello before processing input frames.
 - Stores trusted clients in `~/Library/Application Support/Trackpad/authorized_clients.jsonl` so known clients can reconnect with a trusted key after first short-code pairing.

@@ -29,7 +29,7 @@ import TrackpadKit
     ])
 }
 
-@Test func twoTapsInsideDoubleClickIntervalMapSecondTapToClickCountTwo() {
+@Test func plainTapsInsideDoubleClickIntervalStaySingleClicks() {
     var mapper = MacInputMapper(doubleClickIntervalSeconds: 0.5)
     let first = InputEvent(
         sequenceNumber: 20,
@@ -47,6 +47,20 @@ import TrackpadKit
         .button(button: .left, phase: .up, clickCount: 1),
     ])
     #expect(mapper.commands(for: second) == [
+        .button(button: .left, phase: .down, clickCount: 1),
+        .button(button: .left, phase: .up, clickCount: 1),
+    ])
+}
+
+@Test func explicitDoubleClickTapMapsToClickCountTwo() {
+    var mapper = MacInputMapper(doubleClickIntervalSeconds: 0.5)
+    let event = InputEvent(
+        sequenceNumber: 22,
+        timestampNanos: 1_000_000_000,
+        kind: .tap(TapEvent(button: .left, clickCount: 2))
+    )
+
+    #expect(mapper.commands(for: event) == [
         .button(button: .left, phase: .down, clickCount: 2),
         .button(button: .left, phase: .up, clickCount: 2),
     ])
@@ -99,6 +113,19 @@ import TrackpadKit
     ])
 }
 
+@Test func magnifyMapsToMagnifyCommand() {
+    var mapper = MacInputMapper()
+    let event = InputEvent(
+        sequenceNumber: 5,
+        timestampNanos: 14,
+        kind: .magnify(MagnifyEvent(magnification: 0.25, phase: .changed))
+    )
+
+    #expect(mapper.commands(for: event) == [
+        .magnify(magnification: 0.25, phase: .changed),
+    ])
+}
+
 @Test func systemActionMapsToSystemActionCommand() {
     var mapper = MacInputMapper(systemGestureSettings: .allThreeFingerSwipesEnabled)
     let event = InputEvent(
@@ -112,7 +139,7 @@ import TrackpadKit
     ])
 }
 
-@Test func contactEventDoesNotMapToInputCommandOrResetDoubleClickState() {
+@Test func contactEventDoesNotMapToInputCommandOrPromoteNextTap() {
     var mapper = MacInputMapper(doubleClickIntervalSeconds: 0.5)
     let firstTap = InputEvent(
         sequenceNumber: 30,
@@ -134,8 +161,8 @@ import TrackpadKit
 
     #expect(mapper.commands(for: contact).isEmpty)
     #expect(mapper.commands(for: secondTap) == [
-        .button(button: .left, phase: .down, clickCount: 2),
-        .button(button: .left, phase: .up, clickCount: 2),
+        .button(button: .left, phase: .down, clickCount: 1),
+        .button(button: .left, phase: .up, clickCount: 1),
     ])
 }
 

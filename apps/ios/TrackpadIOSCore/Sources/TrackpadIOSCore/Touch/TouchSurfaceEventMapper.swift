@@ -82,8 +82,11 @@ public struct TouchSurfaceEventMapper {
         var hasProcessedSingleFingerMove = false
         var suppressSingleFingerTap = false
         var didScroll = false
+        var didMagnify = false
         var didEmitSystemAction = false
         var didSeeSecondContact = false
+        var startMagnifyDistance: Double?
+        var previousMagnifyDistance: Double?
         var threeFingerStartContacts: [Int: TouchPoint] = [:]
         var threeFingerPreviousContacts: [Int: TouchPoint] = [:]
         var rightEdgeStartContacts: [Int: TouchPoint] = [:]
@@ -93,10 +96,18 @@ public struct TouchSurfaceEventMapper {
     private struct PendingTap {
         var button: PointerButton
         var timestampNanos: UInt64
+        var clickCount: Int
+    }
+
+    private struct EmittedTapSequence {
+        var button: PointerButton
+        var timestampNanos: UInt64
+        var clickCount: Int
     }
 
     private var gestureState: GestureState?
     private var lastSingleTapEndNanos: UInt64?
+    private var lastEmittedTapSequence: EmittedTapSequence?
     private var pendingTap: PendingTap?
     private var suppressSingleFingerTapUntilNanos: UInt64?
     private var suppressTapUntilNanos: UInt64?
@@ -106,10 +117,13 @@ public struct TouchSurfaceEventMapper {
     private var nextSequenceNumber: UInt64 = 1
     private let timestampProvider: () -> UInt64
     private let tapMovementTolerance: Double = 8
+    private let doubleTapMaximumIntervalNanos: UInt64 = 500_000_000
     private let firstPointerMoveRebaseTolerance: Double = 3
     private let tapDragFirstMoveRebaseTolerance: Double = 8
     private let tapDragFirstMoveMaximumRebasedDelta: Double = 3
     private let scrollMovementTolerance: Double = 0.5
+    private let magnifyDistanceTolerance: Double = 10
+    private let magnifyAxisDominance: Double = 2
     private let threeFingerContactMovementTolerance: Double = 8
     private let threeFingerSwipeThreshold: Double = 52
     private let threeFingerSwipeAxisDominance: Double = 1.35
@@ -260,6 +274,32 @@ public struct TouchSurfaceEventMapper {
                 kind: .pointerMove(PointerMoveEvent(dx: dx, dy: dy))
             ))
         case .twoFinger:
+            guard let currentDistance = twoFingerDistance(from: contacts) else {
+                gestureState = state
+                return []
+            }
+
+            let previousMagnifyDistance = state.previousMagnifyDistance ?? currentDistance
+            let startMagnifyDistance = state.startMagnifyDistance ?? previousMagnifyDistance
+            let distanceDeltaFromPrevious = currentDistance - previousMagnifyDistance
+            let distanceDeltaFromStart = currentDistance - startMagnifyDistance
+            let shouldStartMagnify = !state.didScroll
+                && abs(distanceDeltaFromStart) >= magnifyDistanceTolerance
+                && abs(distanceDeltaFromStart) > state.maxDistanceFromStart * magnifyAxisDominance
+            if state.didMagnify || shouldStartMagnify {
+                let phase: ScrollPhase = state.didMagnify ? .changed : .began
+                let baselineDistance = max(previousMagnifyDistance, 1)
+                state.didMagnify = true
+                state.previousMagnifyDistance = currentDistance
+                events.append(makeEvent(
+                    timestampNanos: timestamp,
+                    kind: .magnify(MagnifyEvent(magnification: distanceDeltaFromPrevious / baselineDistance, phase: phase))
+                ))
+                gestureState = state
+                return events
+            }
+
+            state.previousMagnifyDistance = currentDistance
             guard abs(dx) > scrollMovementTolerance || abs(dy) > scrollMovementTolerance else {
                 gestureState = state
                 return []
@@ -407,14 +447,21 @@ public struct TouchSurfaceEventMapper {
                 if state.isTapDragCandidate {
                     events.append(contentsOf: flushPendingTap(clearTapDragAnchor: false))
                 }
-                pendingTap = PendingTap(button: .left, timestampNanos: timestamp)
+                let clickCount = state.isTapDragCandidate ? 1 : nextTapClickCount(button: .left, timestampNanos: timestamp)
+                pendingTap = PendingTap(button: .left, timestampNanos: timestamp, clickCount: clickCount)
                 lastSingleTapEndNanos = timestamp
             } else {
                 lastSingleTapEndNanos = nil
             }
         case .twoFinger:
             lastSingleTapEndNanos = nil
-            if state.didScroll {
+            if state.didMagnify {
+                events.append(makeEvent(
+                    timestampNanos: timestamp,
+                    kind: .magnify(MagnifyEvent(magnification: 0, phase: .ended))
+                ))
+                suppressSingleFingerTapUntilNanos = timestamp + gestureConfiguration.scrollReleaseTapSuppressionNanos
+            } else if state.didScroll {
                 events.append(makeEvent(
                     timestampNanos: timestamp,
                     kind: .scroll(ScrollEvent(dx: 0, dy: 0, phase: .ended))
@@ -474,6 +521,7 @@ public struct TouchSurfaceEventMapper {
     }
 
     private mutating func makeEvent(timestampNanos: UInt64, kind: InputEventKind) -> InputEvent {
+        updateTapSequence(for: kind, timestampNanos: timestampNanos)
         let event = InputEvent(
             sequenceNumber: nextSequenceNumber,
             timestampNanos: timestampNanos,
@@ -481,6 +529,32 @@ public struct TouchSurfaceEventMapper {
         )
         nextSequenceNumber += 1
         return event
+    }
+
+    private func nextTapClickCount(button: PointerButton, timestampNanos: UInt64) -> Int {
+        guard let lastEmittedTapSequence,
+              lastEmittedTapSequence.button == button,
+              timestampNanos >= lastEmittedTapSequence.timestampNanos,
+              timestampNanos - lastEmittedTapSequence.timestampNanos <= doubleTapMaximumIntervalNanos else {
+            return 1
+        }
+
+        return min(lastEmittedTapSequence.clickCount + 1, 3)
+    }
+
+    private mutating func updateTapSequence(for kind: InputEventKind, timestampNanos: UInt64) {
+        switch kind {
+        case .tap(let tap):
+            lastEmittedTapSequence = EmittedTapSequence(
+                button: tap.button,
+                timestampNanos: timestampNanos,
+                clickCount: tap.clickCount
+            )
+        case .contact:
+            break
+        default:
+            lastEmittedTapSequence = nil
+        }
     }
 
     private func makeGestureState(from contacts: [TouchContact], timestamp: UInt64) -> GestureState? {
@@ -531,7 +605,9 @@ public struct TouchSurfaceEventMapper {
                 startPoint: point,
                 previousPoint: point,
                 previousTimeNanos: timestamp,
-                suppressSingleFingerTap: isTapSuppressed(at: timestamp)
+                suppressSingleFingerTap: isTapSuppressed(at: timestamp),
+                startMagnifyDistance: twoFingerDistance(from: contacts),
+                previousMagnifyDistance: twoFingerDistance(from: contacts)
             )
         case 3:
             return GestureState(
@@ -583,7 +659,7 @@ public struct TouchSurfaceEventMapper {
         return [
             makeEvent(
                 timestampNanos: pendingTap.timestampNanos,
-                kind: .tap(TapEvent(button: pendingTap.button))
+                kind: .tap(TapEvent(button: pendingTap.button, clickCount: pendingTap.clickCount))
             ),
         ]
     }
@@ -881,6 +957,14 @@ public struct TouchSurfaceEventMapper {
         }
         let count = Double(points.count)
         return TouchPoint(x: total.x / count, y: total.y / count)
+    }
+
+    private func twoFingerDistance(from contacts: [TouchContact]) -> Double? {
+        guard contacts.count == 2 else {
+            return nil
+        }
+
+        return distance(from: contacts[0].point, to: contacts[1].point)
     }
 
     private func contactMap(from contacts: [TouchContact]) -> [Int: TouchPoint] {

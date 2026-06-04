@@ -5,5 +5,6 @@ public enum MacInputCommand: Equatable, Sendable {
     case drag(button: PointerButton, dx: Double, dy: Double)
     case button(button: PointerButton, phase: ButtonPhase, clickCount: Int)
     case scroll(dx: Double, dy: Double, phase: ScrollPhase, momentumPhase: ScrollPhase?)
+    case magnify(magnification: Double, phase: ScrollPhase)
     case systemAction(SystemAction)
 }

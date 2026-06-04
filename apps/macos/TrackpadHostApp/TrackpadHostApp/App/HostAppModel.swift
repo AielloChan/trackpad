@@ -14,6 +14,7 @@ final class HostAppModel: ObservableObject {
     @Published var tapMaximumDurationMilliseconds = TrackpadConfiguration.defaults.gestures.tapMaximumDurationMilliseconds
     @Published var tapDragMaximumIntervalMilliseconds = TrackpadConfiguration.defaults.gestures.tapDragMaximumIntervalMilliseconds
     @Published var scrollReleaseTapSuppressionMilliseconds = TrackpadConfiguration.defaults.gestures.scrollReleaseTapSuppressionMilliseconds
+    @Published var isScrollMomentumEnabled = TrackpadConfiguration.defaults.scrollMomentum.isEnabled
     @Published var scrollMomentumAmount = TrackpadConfiguration.defaults.scrollMomentum.amount
     @Published var scrollMomentumDecayRate = TrackpadConfiguration.defaults.scrollMomentum.decayRate
     @Published var scrollMomentumTailWindowMilliseconds = TrackpadConfiguration.defaults.scrollMomentum.tailWindowMilliseconds
@@ -134,7 +135,7 @@ final class HostAppModel: ObservableObject {
         }
 
         server?.updateLocalConfiguration(configuration)
-        logger.info(category: "config", "host local configuration changed pointer=\(configuration.pointer.speedMultiplier) momentum=\(configuration.scrollMomentum.amount)")
+        logger.info(category: "config", "host local configuration changed pointer=\(configuration.pointer.speedMultiplier) momentumEnabled=\(configuration.scrollMomentum.isEnabled) momentum=\(configuration.scrollMomentum.amount)")
     }
 
     private func refreshPairingQRCodePayload() {
@@ -150,6 +151,7 @@ final class HostAppModel: ObservableObject {
                 scrollReleaseTapSuppressionMilliseconds: scrollReleaseTapSuppressionMilliseconds
             ),
             scrollMomentum: ScrollMomentumSettings(
+                isEnabled: isScrollMomentumEnabled,
                 amount: scrollMomentumAmount,
                 decayRate: scrollMomentumDecayRate,
                 tailWindowMilliseconds: scrollMomentumTailWindowMilliseconds
@@ -174,6 +176,7 @@ final class HostAppModel: ObservableObject {
         tapMaximumDurationMilliseconds = configuration.gestures.tapMaximumDurationMilliseconds
         tapDragMaximumIntervalMilliseconds = configuration.gestures.tapDragMaximumIntervalMilliseconds
         scrollReleaseTapSuppressionMilliseconds = configuration.gestures.scrollReleaseTapSuppressionMilliseconds
+        isScrollMomentumEnabled = configuration.scrollMomentum.isEnabled
         scrollMomentumAmount = configuration.scrollMomentum.amount
         scrollMomentumDecayRate = configuration.scrollMomentum.decayRate
         scrollMomentumTailWindowMilliseconds = configuration.scrollMomentum.tailWindowMilliseconds

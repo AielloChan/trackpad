@@ -19,11 +19,11 @@ Apple's current public trackpad gesture documentation groups gestures into point
 | --- | --- | --- | --- | --- |
 | `PointerMove` | 光标移动 | Move one finger on the surface. | Moves the macOS pointer. | `supported` |
 | `LeftClickTap` | 左键轻点 | Tap with one finger. | Sends a left click after the tap-drag window expires. | `supported` |
-| `DoubleClickTap` | 双击 | Two quick `LeftClickTap` gestures. | Host maps consecutive taps to native click counts for double-click selection/opening. | `supported` |
+| `DoubleClickTap` | 双击 | Two quick `LeftClickTap` gestures. | iOS sends an explicit double-click tap count and the host injects the matching click state. | `supported` |
 | `TapThenDrag` | 轻点后拖拽 | Tap, lift, quickly press again, then move. | Holds left mouse button and drags. | `supported` |
 | `RightClickTap` | 右键轻点 | Click or tap with two fingers. | Sends a right click. | `supported` |
 | `TwoFingerScroll` | 双指滚动 | Slide two fingers up, down, left, or right. | Sends finger-driven scroll deltas. | `supported` |
-| `ScrollMomentum` | 滚动惯性 | Release after a two-finger scroll. | macOS host synthesizes inertial scrolling. | `partial` |
+| `ScrollMomentum` | 滚动惯性 | Release after a two-finger scroll. | macOS host synthesizes inertial scrolling when enabled in the host app. | `partial / configurable` |
 | `InterruptScrollMomentum` | 打断滚动惯性 | Touch the surface while momentum is active. | Cancels host-generated inertial scrolling immediately. | `supported` |
 | `MissionControlSwipeUp` | Mission Control 上扫 | Swipe up with three or four fingers, depending on macOS settings. | Opens Mission Control when host settings allow it. | `supported` |
 | `AppExposeSwipeDown` | App Expose 下扫 | Swipe down with three or four fingers, depending on macOS settings. | Opens App Expose when host settings allow it. | `supported` |
@@ -34,7 +34,7 @@ Apple's current public trackpad gesture documentation groups gestures into point
 | `LookUpDataDetectors` | 查询与数据检测 | Force click or three-finger tap, depending on settings. | Not implemented. | `planned` |
 | `ForceClick` | 重按 | Press firmly on a Force Touch trackpad. | Not implemented; iPhone/iPad touch surfaces do not map cleanly to Force Touch. | `deferred` |
 | `SmartZoom` | 智能缩放 | Double-tap with two fingers. | Not implemented. | `planned` |
-| `PinchZoom` | 捏合缩放 | Pinch two fingers closed or spread them apart. | Not implemented. | `planned` |
+| `PinchZoom` | 捏合缩放 | Pinch two fingers closed or spread them apart. | Emits a semantic magnify event. The current macOS host uses a cursor-located modified scroll fallback, so it is closer to mouse/trackpad zoom than shortcut zoom but is not native continuous trackpad magnification yet. | `partial` |
 | `Rotate` | 双指旋转 | Move two fingers around each other. | Not implemented. | `planned` |
 | `SwipeBetweenPages` | 页面前进后退 | Swipe left or right with two fingers. | Not implemented. Must be disambiguated from horizontal scroll. | `planned` |
 | `LaunchpadPinch` | Launchpad 捏合 | Pinch with thumb and three fingers. | Opens Launchpad from the normal app view, or returns from Show Desktop. | `supported` |
@@ -55,6 +55,8 @@ Apple's current public trackpad gesture documentation groups gestures into point
 - A completed one-finger tap followed by a second press inside the drag interval starts a drag.
 - Default drag interval is `140 ms`.
 - When the second press moves, the pending click is cancelled instead of being sent first. This keeps Mission Control from exiting before a window drag begins.
+- When the second press ends without movement inside the drag interval, it stays a single click instead of being promoted to `clickCount=2`.
+- A second tap after the drag interval can emit `clickCount=2`; the host does not promote ordinary consecutive taps on its own.
 - Movement during the second press sends left-button down, pointer movement, then left-button up on release.
 
 ### `TwoFingerScroll`
@@ -62,7 +64,18 @@ Apple's current public trackpad gesture documentation groups gestures into point
 - Starts with two contacts.
 - Sends `scroll.began`, `scroll.changed`, and `scroll.ended`.
 - If one finger is reported after a two-finger scroll has started, the mapper keeps the scroll ending path instead of converting the tail into a click or pointer move.
+- When centroid movement matches or exceeds distance change, this mode wins over distance jitter and stays active until the two-finger contact session ends.
+- Ambiguous startup movement is treated as scroll before `PinchZoom`; the mapper requires a clearly larger contact-distance change before locking into magnify.
 - The macOS host owns `ScrollMomentum`.
+
+### `PinchZoom`
+
+- Starts with two contacts.
+- The iOS mapper compares the distance between the two contacts against the start and previous distance.
+- If distance change clearly dominates centroid movement, it sends `magnify.began`, `magnify.changed`, and `magnify.ended` instead of `TwoFingerScroll`, even when the pinch/spread has some overall drift.
+- Once `PinchZoom` or `TwoFingerScroll` starts, the mapper stays in that mode until the two-finger contact session ends.
+- Positive magnification means fingers spread apart; negative magnification means fingers pinch closed.
+- The current macOS host maps accumulated magnification to `Control`-modified pixel scroll events at the current cursor location because public CoreGraphics pointer injection does not expose the same native continuous magnify event as Apple trackpads.
 
 ### `MissionControlSwipeUp`, `AppExposeSwipeDown`, `NextSpaceSwipeLeft`, `PreviousSpaceSwipeRight`
 

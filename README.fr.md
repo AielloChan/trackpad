@@ -22,6 +22,7 @@ La phase 1 est utilisable pour des tests en reseau local :
 - Tap, second appui rapide, puis mouvement pour le glisser.
 - Tap a deux doigts pour le clic droit.
 - Defilement a deux doigts sans inertie generee cote client.
+- Pincement/ecartement a deux doigts avec evenement de zoom independant de la plateforme; l'hote macOS actuel utilise un repli par defilement modifie, positionne sur le curseur.
 - Balayage vers l'interieur depuis le bord droit, avec deux contacts avant le relachement, pour ouvrir le centre de notifications macOS, puis balayage a deux doigts vers la droite pour le fermer.
 - Balayage a trois doigts haut/bas/gauche/droite pour Mission Control, App Expose et la navigation entre Spaces.
 - Pincement/ecartement a quatre doigts avec transitions d'etat Launchpad et Bureau.

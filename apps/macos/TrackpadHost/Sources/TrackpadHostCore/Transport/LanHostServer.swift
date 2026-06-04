@@ -334,7 +334,7 @@ public final class LanHostServer: @unchecked Sendable {
                 configurationHandler(configuration)
                 broadcastConfiguration(snapshot, except: id)
             }
-            logger.info(category: "input", "received scroll momentum settings connection=\(id) amount=\(settings.amount) decay=\(settings.decayRate) tailMs=\(settings.tailWindowMilliseconds)")
+            logger.info(category: "input", "received scroll momentum settings connection=\(id) enabled=\(settings.isEnabled) amount=\(settings.amount) decay=\(settings.decayRate) tailMs=\(settings.tailWindowMilliseconds)")
             updateStatus(state: status.state, clearLastError: true)
             return true
         case .configurationSync(let snapshot):

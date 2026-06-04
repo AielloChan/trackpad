@@ -55,6 +55,9 @@ struct HostStatusView: View {
         .onChange(of: model.pointerSpeedMultiplier) { _, _ in
             model.syncConfigurationFromControls()
         }
+        .onChange(of: model.isScrollMomentumEnabled) { _, _ in
+            model.syncConfigurationFromControls()
+        }
         .onChange(of: model.scrollMomentumAmount) { _, _ in
             model.syncConfigurationFromControls()
         }
@@ -133,8 +136,16 @@ struct HostStatusView: View {
                 step: 0.1,
                 text: String(format: "%.1fx", model.pointerSpeedMultiplier)
             )
+            GridRow {
+                Text("Momentum")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 92, alignment: .leading)
+                Toggle("Enable inertia", isOn: $model.isScrollMomentumEnabled)
+                    .toggleStyle(.switch)
+                    .gridCellColumns(2)
+            }
             configurationSlider(
-                "Momentum",
+                "Amount",
                 value: $model.scrollMomentumAmount,
                 range: TrackpadConfigurationLimits.scrollMomentumAmount,
                 step: 0.1,
