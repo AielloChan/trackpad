@@ -22,6 +22,9 @@ final class TrackpadClientModel: ObservableObject {
     @Published private(set) var sentEventRateHz: Int?
     @Published private(set) var connectionPathLabel = "Path --"
     @Published private(set) var pointerSpeedMultiplier = TrackpadConfiguration.defaults.pointer.speedMultiplier
+    @Published private(set) var pointerAccelerationMaximumMultiplier = TrackpadConfiguration.defaults.pointer.accelerationMaximumMultiplier
+    @Published private(set) var pointerAccelerationStartVelocity = TrackpadConfiguration.defaults.pointer.accelerationStartVelocity
+    @Published private(set) var pointerAccelerationEndVelocity = TrackpadConfiguration.defaults.pointer.accelerationEndVelocity
     @Published private(set) var tapMaximumDurationMilliseconds = TrackpadConfiguration.defaults.gestures.tapMaximumDurationMilliseconds
     @Published private(set) var tapDragMaximumIntervalMilliseconds = TrackpadConfiguration.defaults.gestures.tapDragMaximumIntervalMilliseconds
     @Published private(set) var scrollReleaseTapSuppressionMilliseconds = TrackpadConfiguration.defaults.gestures.scrollReleaseTapSuppressionMilliseconds
@@ -41,6 +44,10 @@ final class TrackpadClientModel: ObservableObject {
     private var activeConnectionConfiguration: TrackpadConnectionConfiguration?
     private var selectedDiscoveredHost: DiscoveredTrackpadHost?
     private var pendingTrustedHostAliases: [String] = []
+    private var automaticConnectAttemptCount = 0
+    private var automaticConnectCandidateID: String?
+    private var automaticConnectRetryTask: Task<Void, Never>?
+    private var isAutomaticConnectSuppressed = false
     private var isDiscoveryRunning = false
     private var didRunDebugAutomation = false
     private var latencyTask: Task<Void, Never>?
@@ -58,6 +65,11 @@ final class TrackpadClientModel: ObservableObject {
         client.inputSendFailureHandler = { [weak self] message in
             Task { @MainActor [weak self] in
                 self?.handleInputSendFailure(message)
+            }
+        }
+        client.connectionClosedHandler = { [weak self] message in
+            Task { @MainActor [weak self] in
+                self?.handleConnectionClosed(message)
             }
         }
         client.pathUpdateHandler = { [weak self] snapshot in
@@ -99,13 +111,20 @@ final class TrackpadClientModel: ObservableObject {
         connectionState == .connected
     }
 
+    private enum ConnectionInitiator {
+        case manual
+        case automatic
+    }
+
     func startDiscovery() {
         guard !isDiscoveryRunning else {
+            attemptAutomaticTrustedConnectionIfNeeded()
             return
         }
 
         isDiscoveryRunning = true
         hostBrowser.start()
+        attemptAutomaticTrustedConnectionIfNeeded()
     }
 
     func stopDiscovery() {
@@ -125,8 +144,20 @@ final class TrackpadClientModel: ObservableObject {
     }
 
     func connect(sendSampleMoveAfterConnect: Bool = false) {
+        connect(sendSampleMoveAfterConnect: sendSampleMoveAfterConnect, initiator: .manual)
+    }
+
+    private func connect(
+        sendSampleMoveAfterConnect: Bool = false,
+        initiator: ConnectionInitiator
+    ) {
         guard connectionState != .connecting else {
             return
+        }
+
+        if initiator == .manual {
+            resetAutomaticConnectState()
+            isAutomaticConnectSuppressed = false
         }
 
         connectionState = .connecting
@@ -163,6 +194,9 @@ final class TrackpadClientModel: ObservableObject {
                 activeConnectionConfiguration = configuration
                 try await client.connect(configuration: configuration)
                 connectionState = .connected
+                if initiator == .automatic {
+                    recordDiagnosticLog("ios.autoconnect transportConnected host=\(configuration.trustedHostIdentity)")
+                }
                 startLatencyUpdates()
                 if sendSampleMoveAfterConnect {
                     try await sendDebugSampleMove()
@@ -170,7 +204,12 @@ final class TrackpadClientModel: ObservableObject {
             } catch {
                 activeConnectionConfiguration = nil
                 stopLatencyUpdates()
-                connectionState = .failed(String(describing: error))
+                let message = String(describing: error)
+                if initiator == .automatic {
+                    handleAutomaticConnectFailure(message)
+                } else {
+                    connectionState = .failed(message)
+                }
             }
         }
     }
@@ -196,6 +235,19 @@ final class TrackpadClientModel: ObservableObject {
     }
 
     func disconnect() {
+        disconnect(suppressAutomaticReconnect: true)
+    }
+
+    func disconnectForLifecycle() {
+        disconnect(suppressAutomaticReconnect: false)
+    }
+
+    private func disconnect(suppressAutomaticReconnect: Bool) {
+        if suppressAutomaticReconnect {
+            isAutomaticConnectSuppressed = true
+        }
+        automaticConnectRetryTask?.cancel()
+        automaticConnectRetryTask = nil
         stopLatencyUpdates()
         cancelPendingTapFlush()
         client.disconnect()
@@ -205,6 +257,7 @@ final class TrackpadClientModel: ObservableObject {
         inputEventTuningState = InputEventTuningState()
         connectionPathLabel = "Path --"
         connectionState = .disconnected
+        recordDiagnosticLog("ios.autoconnect disconnected manual=\(suppressAutomaticReconnect)")
     }
 
     func touchBegan(with contacts: [TouchContact]) {
@@ -266,6 +319,8 @@ final class TrackpadClientModel: ObservableObject {
         }
 
         applyConfigurationToControls(snapshot.configuration)
+        automaticConnectAttemptCount = 0
+        automaticConnectCandidateID = nil
         recordDiagnosticLog("ios.configApplied source=\(snapshot.sourceDeviceId) revision=\(snapshot.revision)")
     }
 
@@ -375,19 +430,95 @@ final class TrackpadClientModel: ObservableObject {
 
     private func applyDiscoveredHosts(_ hosts: [DiscoveredTrackpadHost]) {
         discoveredHosts = hosts
-        guard let selectedDiscoveredHost else {
+
+        if let selectedDiscoveredHost, !hosts.contains(selectedDiscoveredHost) {
+            self.selectedDiscoveredHost = nil
+            selectedHostID = nil
+            if port == "Bonjour" {
+                port = "44787"
+            }
+        }
+
+        attemptAutomaticTrustedConnectionIfNeeded()
+    }
+
+    private func attemptAutomaticTrustedConnectionIfNeeded() {
+        guard !isAutomaticConnectSuppressed,
+              isConnectionIdleForAutomaticConnect,
+              automaticConnectAttemptCount < 3,
+              let candidate = trustedAutomaticConnectCandidate() else {
             return
         }
 
-        if hosts.contains(selectedDiscoveredHost) {
+        if automaticConnectCandidateID != candidate.id {
+            automaticConnectCandidateID = candidate.id
+            automaticConnectAttemptCount = 0
+        }
+
+        guard automaticConnectAttemptCount < 3 else {
             return
         }
 
-        self.selectedDiscoveredHost = nil
-        selectedHostID = nil
-        if port == "Bonjour" {
-            port = "44787"
+        automaticConnectRetryTask?.cancel()
+        automaticConnectRetryTask = nil
+        automaticConnectAttemptCount += 1
+        select(candidate)
+        recordDiagnosticLog("ios.autoconnect attempt=\(automaticConnectAttemptCount) host=\(candidate.name)")
+        connect(initiator: .automatic)
+    }
+
+    private var isConnectionIdleForAutomaticConnect: Bool {
+        switch connectionState {
+        case .disconnected, .failed:
+            return true
+        case .connecting, .connected:
+            return false
         }
+    }
+
+    private func trustedAutomaticConnectCandidate() -> DiscoveredTrackpadHost? {
+        discoveredHosts.first { discoveredHost in
+            let configuration = TrackpadConnectionConfiguration(
+                address: discoveredHost.address,
+                pairingCode: pairingCode,
+                deviceId: deviceId,
+                deviceName: deviceName
+            )
+
+            do {
+                return try trustedHostStore.hasClientKey(for: configuration)
+            } catch {
+                recordDiagnosticLog("ios.autoconnect trustLookupFailed host=\(configuration.trustedHostIdentity) error=\(String(describing: error))")
+                return false
+            }
+        }
+    }
+
+    private func handleAutomaticConnectFailure(_ message: String) {
+        recordDiagnosticLog("ios.autoconnect failed attempt=\(automaticConnectAttemptCount) error=\(message)")
+        guard automaticConnectAttemptCount < 3 else {
+            isAutomaticConnectSuppressed = true
+            connectionState = .failed("Auto connect failed")
+            return
+        }
+
+        connectionState = .failed("Auto connect failed, retrying")
+        automaticConnectRetryTask?.cancel()
+        automaticConnectRetryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+
+            self?.attemptAutomaticTrustedConnectionIfNeeded()
+        }
+    }
+
+    private func resetAutomaticConnectState() {
+        automaticConnectRetryTask?.cancel()
+        automaticConnectRetryTask = nil
+        automaticConnectAttemptCount = 0
+        automaticConnectCandidateID = nil
     }
 
     private func applyGestureConfiguration() {
@@ -400,6 +531,9 @@ final class TrackpadClientModel: ObservableObject {
 
     private func applyConfigurationToControls(_ configuration: TrackpadConfiguration) {
         pointerSpeedMultiplier = configuration.pointer.speedMultiplier
+        pointerAccelerationMaximumMultiplier = configuration.pointer.accelerationMaximumMultiplier
+        pointerAccelerationStartVelocity = configuration.pointer.accelerationStartVelocity
+        pointerAccelerationEndVelocity = configuration.pointer.accelerationEndVelocity
         tapMaximumDurationMilliseconds = configuration.gestures.tapMaximumDurationMilliseconds
         tapDragMaximumIntervalMilliseconds = configuration.gestures.tapDragMaximumIntervalMilliseconds
         scrollReleaseTapSuppressionMilliseconds = configuration.gestures.scrollReleaseTapSuppressionMilliseconds
@@ -415,7 +549,13 @@ final class TrackpadClientModel: ObservableObject {
             return
         }
 
-        let tunedEvents = InputEventTuning(pointerSpeedMultiplier: pointerSpeedMultiplier).apply(to: events, state: &inputEventTuningState)
+        let pointerConfiguration = PointerConfiguration(
+            speedMultiplier: pointerSpeedMultiplier,
+            accelerationMaximumMultiplier: pointerAccelerationMaximumMultiplier,
+            accelerationStartVelocity: pointerAccelerationStartVelocity,
+            accelerationEndVelocity: pointerAccelerationEndVelocity
+        )
+        let tunedEvents = InputEventTuning(pointerConfiguration: pointerConfiguration).apply(to: events, state: &inputEventTuningState)
         if events.containsDragDiagnosticEvent || tunedEvents.containsDragDiagnosticEvent {
             logDragDiagnostic(
                 "send pointerSpeed=\(String(format: "%.3f", pointerSpeedMultiplier)) raw=\(events.eventDiagnosticSummary) tuned=\(tunedEvents.eventDiagnosticSummary)",
@@ -511,8 +651,22 @@ final class TrackpadClientModel: ObservableObject {
 
     private func handleInputSendFailure(_ message: String) {
         stopLatencyUpdates()
+        activeConnectionConfiguration = nil
         connectionState = .failed(message)
         client.disconnect()
+        attemptAutomaticTrustedConnectionIfNeeded()
+    }
+
+    private func handleConnectionClosed(_ message: String) {
+        guard connectionState == .connected || connectionState == .connecting else {
+            return
+        }
+
+        stopLatencyUpdates()
+        activeConnectionConfiguration = nil
+        connectionState = .failed(message)
+        recordDiagnosticLog("ios.connection closed message=\(message)")
+        attemptAutomaticTrustedConnectionIfNeeded()
     }
 
     func recordDiagnosticLog(_ message: String) {

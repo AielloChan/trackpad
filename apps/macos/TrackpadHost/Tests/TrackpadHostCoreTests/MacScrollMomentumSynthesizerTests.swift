@@ -10,19 +10,20 @@ import TrackpadKit
         frameIntervalNanos: 16_666_667
     )
 
-    let beganStartedMomentum = synthesizer.handle(scrollEvent(sequence: 1, timestamp: 0, dx: 0, dy: 20, phase: .began))
-    let changedStartedMomentum = synthesizer.handle(scrollEvent(sequence: 2, timestamp: 100_000_000, dx: 0, dy: 40, phase: .changed))
-    let endedStartedMomentum = synthesizer.handle(scrollEvent(sequence: 3, timestamp: 120_000_000, dx: 0, dy: 0, phase: .ended))
+    let beganStartedMomentum = synthesizer.handle(scrollEvent(sequence: 1, timestamp: 0, dx: 0, dy: 40, phase: .began))
+    let changedStartedMomentum = synthesizer.handle(scrollEvent(sequence: 2, timestamp: 16_666_667, dx: 0, dy: 40, phase: .changed))
+    let endedStartedMomentum = synthesizer.handle(scrollEvent(sequence: 3, timestamp: 33_333_334, dx: 0, dy: 0, phase: .ended))
 
     #expect(!beganStartedMomentum)
     #expect(!changedStartedMomentum)
     #expect(endedStartedMomentum)
 
-    let first = synthesizer.nextMomentumCommand(at: 136_666_667)
-    let second = synthesizer.nextMomentumCommand(at: 153_333_334)
+    let first = synthesizer.nextMomentumCommand(at: 50_000_001)
+    let second = synthesizer.nextMomentumCommand(at: 66_666_668)
 
-    #expect(first?.isScroll(dx: 0, dy: 7.6824346, phase: .changed, momentumPhase: .began) == true)
-    #expect(second?.isScroll(dx: 0, dy: 6.1459477, phase: .changed, momentumPhase: .changed) == true)
+    #expect(first?.isMomentumScroll == true)
+    #expect(second?.isMomentumScroll == true)
+    #expect((first?.scrollDeltaMagnitude ?? 0) > (second?.scrollDeltaMagnitude ?? 0))
 }
 
 @Test func macScrollMomentumSynthesizerIgnoresClientMomentumEvents() {
@@ -55,6 +56,50 @@ import TrackpadKit
     #expect(!changedStartedMomentum)
     #expect(!endedStartedMomentum)
     #expect(synthesizer.nextMomentumCommand(at: 50_000_001) == nil)
+}
+
+@Test func macScrollMomentumSynthesizerDoesNotBuildMomentumForSlowRelease() {
+    var synthesizer = MacScrollMomentumSynthesizer(
+        settings: ScrollMomentumSettings(amount: 5, decayRate: 0.95, tailWindowMilliseconds: 140),
+        frameIntervalNanos: 16_666_667
+    )
+
+    let beganStartedMomentum = synthesizer.handle(scrollEvent(sequence: 1, timestamp: 0, dx: 0, dy: 2, phase: .began))
+    let changedStartedMomentum = synthesizer.handle(scrollEvent(sequence: 2, timestamp: 16_666_667, dx: 0, dy: 3, phase: .changed))
+    let endedStartedMomentum = synthesizer.handle(scrollEvent(sequence: 3, timestamp: 33_333_334, dx: 0, dy: 0, phase: .ended))
+
+    #expect(!beganStartedMomentum)
+    #expect(!changedStartedMomentum)
+    #expect(!endedStartedMomentum)
+    #expect(synthesizer.nextMomentumCommand(at: 50_000_001) == nil)
+}
+
+@Test func macScrollMomentumSynthesizerRampsMomentumForMediumRelease() {
+    var mediumSynthesizer = MacScrollMomentumSynthesizer(
+        settings: ScrollMomentumSettings(amount: 5, decayRate: 0.95, tailWindowMilliseconds: 140),
+        frameIntervalNanos: 16_666_667
+    )
+    var fastSynthesizer = MacScrollMomentumSynthesizer(
+        settings: ScrollMomentumSettings(amount: 5, decayRate: 0.95, tailWindowMilliseconds: 140),
+        frameIntervalNanos: 16_666_667
+    )
+
+    let mediumEvents = [
+        scrollEvent(sequence: 1, timestamp: 0, dx: 0, dy: 9, phase: .began),
+        scrollEvent(sequence: 2, timestamp: 16_666_667, dx: 0, dy: 9, phase: .changed),
+        scrollEvent(sequence: 3, timestamp: 33_333_334, dx: 0, dy: 0, phase: .ended),
+    ]
+    let fastEvents = [
+        scrollEvent(sequence: 1, timestamp: 0, dx: 0, dy: 22, phase: .began),
+        scrollEvent(sequence: 2, timestamp: 16_666_667, dx: 0, dy: 22, phase: .changed),
+        scrollEvent(sequence: 3, timestamp: 33_333_334, dx: 0, dy: 0, phase: .ended),
+    ]
+
+    let mediumCommands = commands(from: mediumEvents, using: &mediumSynthesizer, frameInterval: 16_666_667)
+    let fastCommands = commands(from: fastEvents, using: &fastSynthesizer, frameInterval: 16_666_667)
+
+    #expect(mediumCommands.firstScrollDelta > 0)
+    #expect(mediumCommands.firstScrollDelta < fastCommands.firstScrollDelta * 0.5)
 }
 
 @Test func macScrollMomentumSynthesizerSupportsLongerNativeLikeMomentumTuning() {
@@ -211,6 +256,22 @@ private extension Array where Element == MacInputCommand {
 }
 
 private extension MacInputCommand {
+    var isMomentumScroll: Bool {
+        guard case .scroll(_, _, .changed, let momentumPhase) = self else {
+            return false
+        }
+
+        return momentumPhase != nil
+    }
+
+    var scrollDeltaMagnitude: Double {
+        guard case .scroll(let dx, let dy, .changed, _) = self else {
+            return 0
+        }
+
+        return abs(dx) + abs(dy)
+    }
+
     func isScroll(
         dx expectedDx: Double,
         dy expectedDy: Double,

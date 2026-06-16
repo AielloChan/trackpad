@@ -50,7 +50,8 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Removed iOS scroll momentum amount tuning while momentum is disabled.
 - [x] iOS suppresses accidental single-finger taps for 80 ms after two-finger scroll release.
 - [x] iOS tap-then-second-press drag interval defaults to 140 ms after real-device tuning.
-- [x] iOS pointer speed defaults to 2.1x after real-device tuning.
+- [x] iOS pointer speed defaults to 1.75x after real-device tuning.
+- [x] iOS adaptive pointer acceleration uses a recent movement window and normal pointer startup limits only the first movement sample.
 - [x] iOS connected bar exposes tap duration, drag interval, and scroll guard timing sliders.
 - [x] iOS tap-drag candidate state no longer suppresses small pointer movements before the drag threshold.
 - [x] macOS host maps explicit tap click counts for double-click selection.
@@ -118,6 +119,13 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [x] Allow any touch in the current session to be the Notification Center right-edge candidate.
 - [x] Add scoped two-finger right swipe to close Notification Center after opening it from the client.
 - [x] Delay one-finger tap emission until the tap-drag window expires so Mission Control window thumbnails can be dragged between Spaces.
+- [x] Add iOS pointer acceleration so slow movement stays near 1.75x and fast movement ramps toward 3.0x.
+- [x] Split macOS host tuning controls into Pointer, Scroll, and Gestures tabs.
+- [x] Add host-side scroll momentum release-speed ramp so slow scroll releases do not launch fast inertia.
+- [x] Retune default scroll momentum decay to 0.945 after real-device testing.
+- [x] Add exact numeric inputs beside macOS host tuning sliders.
+- [x] Add explicit JSON save/load for macOS host tuning configuration.
+- [x] Auto-connect the iOS client to a discovered trusted host while disconnected, with three retry attempts and manual-disconnect suppression.
 - [x] Add four-finger inward pinch to open Launchpad.
 - [x] Add stateful four-finger pinch/spread transitions for Launchpad and Show Desktop.
 - [x] Add platform-neutral two-finger pinch/spread magnify events.
@@ -182,6 +190,7 @@ This file tracks active project progress. Keep it current whenever a task starts
 - [ ] Manually compare the longer host-side inertial scroll distance against a native Apple trackpad.
 - [ ] Manually verify inertial scroll tail smoothness on a 60 Hz and a 120 Hz display.
 - [ ] Manually verify reconnecting a known real iPhone/iPad skips the current pairing code.
+- [ ] Manually verify iOS auto-connects to a discovered trusted host and stops auto-connecting after a manual disconnect.
 - [ ] Manually verify right-edge inward two-contact gesture opens Notification Center on macOS.
 - [ ] Manually verify two-finger right swipe closes Notification Center only after the client opened it.
 - [ ] Manually verify `TapThenDrag` can drag a Mission Control window thumbnail to another Space without first exiting Mission Control.

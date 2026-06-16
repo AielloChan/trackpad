@@ -48,6 +48,7 @@ Apple's current public trackpad gesture documentation groups gestures into point
 - Starts with one contact.
 - Sends relative pointer movement.
 - Small startup moves are sent immediately with first-move limiting to avoid large first-frame jumps.
+- Adaptive speed uses the recent movement window, so a continuous touch can accelerate during fast movement and decelerate again when movement slows.
 
 ### `TapThenDrag`
 

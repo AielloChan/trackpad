@@ -10,13 +10,14 @@ The iOS client MVP is a native SwiftUI/UIKit app that sends single-finger moveme
 4. If using manual entry, enter the pairing code and tap Connect.
 5. After connection succeeds, the app stores the trusted client key issued by the host for future reconnects.
 6. Known hosts can reconnect with the stored key without requiring the current pairing code.
-7. Single-finger movement sends `InputEvent.pointerMove` frames to macOS.
-8. Single-finger tap, tap-then-quick-second-press drag, two-finger tap, and two-finger movement map to click, drag, right click, and scroll events.
-9. Two-finger scroll release sends a clean scroll end; the macOS host synthesizes local inertial momentum.
-10. The connected bar shows client-to-host round-trip latency and refreshes it once per second.
-11. The connected bar also shows touch-move sample Hz and sent input-event Hz as `touch/send Hz`.
-12. The connected bar shows the active connection path reported by `Network.framework`.
-13. The connected bar stays narrow and status-only while connected; tuning controls live in the macOS host app.
+7. While disconnected, the iOS client auto-connects to the first discovered Bonjour host that has a trusted key, retrying up to three times. Tapping the connected bar close button suppresses further automatic connects for the current app session.
+8. Single-finger movement sends `InputEvent.pointerMove` frames to macOS.
+9. Single-finger tap, tap-then-quick-second-press drag, two-finger tap, and two-finger movement map to click, drag, right click, and scroll events.
+10. Two-finger scroll release sends a clean scroll end; the macOS host synthesizes local inertial momentum.
+11. The connected bar shows client-to-host round-trip latency and refreshes it once per second.
+12. The connected bar also shows touch-move sample Hz and sent input-event Hz as `touch/send Hz`.
+13. The connected bar shows the active connection path reported by `Network.framework`.
+14. The connected bar stays narrow and status-only while connected; tuning controls live in the macOS host app.
 
 ## Transport
 
@@ -70,6 +71,7 @@ Frames are encoded with the shared `SessionFrameLineCodec` from `TrackpadKit`.
 - QR pairing uses AVFoundation to scan `trackpad://pair?...` payloads and then fills host, port, and pairing code before connecting.
 - `NSCameraUsageDescription` is configured for QR pairing scans.
 - After a successful short-code pairing, the host sends a `trustedClientKey` frame. The iOS client stores it in Application Support `trusted_hosts.jsonl` and sends it in future `clientHello` frames for the same host identity.
+- Bonjour discovery checks discovered hosts against `trusted_hosts.jsonl`. If the client is idle and a trusted host is available, it selects that host and attempts automatic reconnect up to three times. A user-initiated disconnect from the connected bar disables further automatic reconnect attempts until a manual connect or app restart.
 - The connected bar polls `TrackpadHostClient.measureLatency()` every second and displays RTT in milliseconds.
 - The connected bar displays touch sampling and sent-event rates so stutter can be correlated with capture or transport behavior.
 - The connected bar displays the active `NWConnection` path as `Path Wi-Fi`, `Path Wired`, `Path Cellular Expensive`, or an unavailable state.
@@ -86,9 +88,10 @@ Frames are encoded with the shared `SessionFrameLineCodec` from `TrackpadKit`.
 - The iOS app sends a reliable `contact.began` boundary event on `touchesBegan`; the macOS host uses it to interrupt scheduled inertial scrolling as soon as a finger touches the surface again.
 - Scroll momentum uses a host-side seed tracker that preserves the gesture's dominant axis, so final cross-axis jitter before release does not erase vertical or horizontal inertial scrolling.
 - The iOS app receives low-frequency `configurationSync` frames for pointer, gesture, and scroll momentum tuning.
-- `InputEventTuning` scales pointer movement on the iOS client before transport. The default pointer multiplier is `2.1x`; the visible tuning control lives in the macOS host app.
-- Scroll momentum is synthesized on macOS with a host-side enable switch plus tunable amount, decay rate, and tail velocity window. Defaults are enabled, amount `5.0x`, decay `0.95`, and tail window `140 ms`; tuning ranges are amount `0...12x`, decay `0.72...0.995`, and tail window `30...500 ms`. The host estimates release velocity from the actual tail sample span and integrates exponential decay against real elapsed time one frame at a time.
-- The macOS host edits the tuning settings; configuration sync applies changed snapshots on both endpoints without echoing identical values back.
+- `InputEventTuning` scales pointer movement on the iOS client before transport. The default slow pointer multiplier is `1.75x`; fast movement accelerates toward `3.0x` from the recent `80 ms` movement window, so speed can rise and fall while a finger stays down. Normal pointer startup limits only the first movement sample to avoid a landing jump without suppressing acceleration for the rest of the gesture. The visible tuning controls live in the macOS host app.
+- Scroll momentum is synthesized on macOS with a host-side enable switch plus tunable amount, decay rate, and tail velocity window. Defaults are enabled, amount `5.0x`, decay `0.945`, and tail window `140 ms`; tuning ranges are amount `0...12x`, decay `0.72...0.995`, and tail window `30...500 ms`. The host estimates release velocity from the actual tail sample span, applies a low-speed release ramp so slow finger releases produce little or no inertia, and integrates exponential decay against real elapsed time one frame at a time.
+- The macOS host edits the tuning settings; configuration sync applies changed snapshots on both endpoints without echoing identical values back. Slider settings also expose exact numeric fields on macOS for precise tuning.
+- The macOS host does not auto-save tuning changes. Clicking `Save Configuration` writes `~/Library/Application Support/Trackpad/host_configuration.json`, and host startup loads that JSON before starting the server.
 - The macOS scroll injector marks scroll events as continuous, sets CoreGraphics scroll phase and momentum phase fields, and preserves subpixel residuals for integer wheel deltas.
 - The macOS input mapper tracks pressed buttons and emits dragged mouse commands while the left button is held down, so host injection uses `leftMouseDragged` instead of `mouseMoved` during window drag.
 - Tap events carry an explicit click count. Ordinary single taps stay `clickCount=1`; a second tap after the tap-drag window can send `clickCount=2` so macOS can inject native double-click selection without host-side guessing. A second tap inside the tap-drag window stays single-click unless it moves into `TapThenDrag`.
@@ -100,10 +103,10 @@ Frames are encoded with the shared `SessionFrameLineCodec` from `TrackpadKit`.
 - Pinch zoom, three-finger gestures, and four-finger system gestures are not implemented yet.
 - One-finger hold-and-move is pointer movement, not drag.
 - Drag currently starts when a single-finger tap is followed quickly by a second press and movement past the drag threshold; real-device timing tuning is still needed.
-- Gesture timing settings are currently in-memory only and reset on app restart.
+- Gesture timing settings can be saved from the macOS host app and restored on host restart.
 - Scroll momentum is a synthetic exponential velocity decay from the macOS host with a desktop enable switch and user-tunable amount, decay, and tail-window settings. It now avoids precomputing long momentum queues, but still needs real-device comparison against Magic Trackpad physics.
 - Scroll phase and momentum fields are now injected on macOS, but native-trackpad parity still requires real-device tuning.
-- Pointer speed and momentum settings are in-memory only and reset on app restart.
+- Pointer acceleration, gesture timing, and momentum settings are live by default and persist only after clicking `Save Configuration` in the macOS host app.
 - The connection panel is shown while disconnected; the connected surface is black.
 - The wire format is still JSON Lines. Binary framing is the next transport-efficiency milestone.
 - Device trust persistence and encrypted sessions are still deferred.

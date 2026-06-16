@@ -12,7 +12,7 @@
 
 **Third Log Finding:** After cross-batch limiting, host logs still showed startup drag reports such as `dx=6` or `dx=7.2`. The root cause was the realtime send buffer coalescing multiple already-limited startup pointer reports while a send was in flight. The buffer now keeps the first drag startup pointer reports separate after left-button down, so each limited movement is delivered as its own small report.
 
-**Normal Pointer Follow-up:** The same startup pattern affected ordinary single-finger pointer movement. The mapper used to drop the first large single-finger move to avoid a landing-offset jump; that produced a visible dead zone. Ordinary pointer startup now sends a small limited first movement immediately, keeps the first few startup moves capped after pointer-speed tuning, and prevents send-buffer coalescing from merging them into a larger first report.
+**Normal Pointer Follow-up:** The same startup pattern affected ordinary single-finger pointer movement. The mapper used to drop the first large single-finger move to avoid a landing-offset jump; that produced a visible dead zone. Ordinary pointer startup now sends a small limited first movement immediately, limits only that first sample after pointer-speed tuning, and prevents send-buffer coalescing from merging it into a larger first report. Adaptive pointer acceleration is based on a recent movement window, not time since touch down, so speed can fall back while the finger remains on the surface. Drag startup keeps the longer cross-batch limiter because drag landing offsets are more disruptive.
 
 ## Root Cause
 

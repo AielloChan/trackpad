@@ -52,6 +52,17 @@ public final class TrustedHostStore: @unchecked Sendable {
         self.fileURL = fileURL
     }
 
+    public func hasClientKey(for configuration: TrackpadConnectionConfiguration) throws -> Bool {
+        lock.lock()
+        defer {
+            lock.unlock()
+        }
+
+        let records = try loadRecordsLocked()
+        return records[configuration.trustedHostIdentity] != nil
+            || legacySingleManualRecord(for: configuration, in: records) != nil
+    }
+
     public func clientKey(
         for configuration: TrackpadConnectionConfiguration,
         timestampNanos: UInt64

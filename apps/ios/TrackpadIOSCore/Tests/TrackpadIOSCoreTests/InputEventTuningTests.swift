@@ -39,6 +39,76 @@ import TrackpadKit
     #expect(InputEventTuning(pointerSpeedMultiplier: 12).pointerSpeedMultiplier == 10)
 }
 
+@Test func pointerSpeedTuningKeepsSlowMovesAtBaseMultiplier() {
+    let tuning = InputEventTuning(pointerConfiguration: PointerConfiguration(
+        speedMultiplier: 1.75,
+        accelerationMaximumMultiplier: 3,
+        accelerationStartVelocity: 120,
+        accelerationEndVelocity: 900
+    ))
+
+    let tunedEvents = tuning.apply(to: [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 0,
+            kind: .pointerMove(PointerMoveEvent(dx: 1, dy: 0))
+        ),
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 16_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 1, dy: 0))
+        ),
+    ])
+
+    #expect(tunedEvents == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 0,
+            kind: .pointerMove(PointerMoveEvent(dx: 1.75, dy: 0))
+        ),
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 16_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 1.75, dy: 0))
+        ),
+    ])
+}
+
+@Test func pointerSpeedTuningAcceleratesFastMovesTowardMaximumMultiplier() {
+    let tuning = InputEventTuning(pointerConfiguration: PointerConfiguration(
+        speedMultiplier: 1.75,
+        accelerationMaximumMultiplier: 3,
+        accelerationStartVelocity: 120,
+        accelerationEndVelocity: 900
+    ))
+
+    let tunedEvents = tuning.apply(to: [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 0,
+            kind: .pointerMove(PointerMoveEvent(dx: 1, dy: 0))
+        ),
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 16_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 20, dy: 0))
+        ),
+    ])
+
+    #expect(tunedEvents == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 0,
+            kind: .pointerMove(PointerMoveEvent(dx: 1.75, dy: 0))
+        ),
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 16_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 60, dy: 0))
+        ),
+    ])
+}
+
 @Test func pointerSpeedTuningLimitsFirstDragMoveAfterScaling() {
     let events = [
         InputEvent(
@@ -148,7 +218,7 @@ import TrackpadKit
     ])
 }
 
-@Test func pointerSpeedTuningLimitsPointerStartupMovesAcrossBatches() {
+@Test func pointerSpeedTuningLimitsFirstPointerStartupMoveAcrossBatches() {
     let tuning = InputEventTuning(pointerSpeedMultiplier: 3.1)
     var state = InputEventTuningState()
 
@@ -202,14 +272,14 @@ import TrackpadKit
         InputEvent(
             sequenceNumber: 3,
             timestampNanos: 20,
-            kind: .pointerMove(PointerMoveEvent(dx: 3, dy: 0))
+            kind: .pointerMove(PointerMoveEvent(dx: 6.2, dy: 0))
         ),
     ])
     #expect(thirdBatch == [
         InputEvent(
             sequenceNumber: 4,
             timestampNanos: 30,
-            kind: .pointerMove(PointerMoveEvent(dx: 3, dy: 0))
+            kind: .pointerMove(PointerMoveEvent(dx: 3.1, dy: 0))
         ),
     ])
     #expect(fourthBatch == [
@@ -217,6 +287,94 @@ import TrackpadKit
             sequenceNumber: 5,
             timestampNanos: 40,
             kind: .pointerMove(PointerMoveEvent(dx: 3.1, dy: 0))
+        ),
+    ])
+}
+
+@Test func pointerSpeedTuningRestoresAccelerationAfterFirstPointerStartupMove() {
+    let tuning = InputEventTuning(pointerConfiguration: PointerConfiguration(
+        speedMultiplier: 1.75,
+        accelerationMaximumMultiplier: 3,
+        accelerationStartVelocity: 120,
+        accelerationEndVelocity: 900
+    ))
+    var state = InputEventTuningState()
+
+    let firstBatch = tuning.apply(to: [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 10_000_000,
+            kind: .contact(ContactEvent(phase: .began, contactCount: 1))
+        ),
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 10_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 20, dy: 0))
+        ),
+    ], state: &state)
+    let secondBatch = tuning.apply(to: [
+        InputEvent(
+            sequenceNumber: 3,
+            timestampNanos: 26_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 20, dy: 0))
+        ),
+    ], state: &state)
+
+    #expect(firstBatch == [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 10_000_000,
+            kind: .contact(ContactEvent(phase: .began, contactCount: 1))
+        ),
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 10_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 3, dy: 0))
+        ),
+    ])
+    #expect(secondBatch == [
+        InputEvent(
+            sequenceNumber: 3,
+            timestampNanos: 26_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 60, dy: 0))
+        ),
+    ])
+}
+
+@Test func pointerSpeedTuningUsesRecentWindowAfterPauseWithoutLift() {
+    let tuning = InputEventTuning(pointerConfiguration: PointerConfiguration(
+        speedMultiplier: 1.75,
+        accelerationMaximumMultiplier: 3,
+        accelerationStartVelocity: 120,
+        accelerationEndVelocity: 900
+    ))
+    var state = InputEventTuningState()
+
+    _ = tuning.apply(to: [
+        InputEvent(
+            sequenceNumber: 1,
+            timestampNanos: 0,
+            kind: .pointerMove(PointerMoveEvent(dx: 1, dy: 0))
+        ),
+        InputEvent(
+            sequenceNumber: 2,
+            timestampNanos: 16_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 20, dy: 0))
+        ),
+    ], state: &state)
+    let slowAfterPause = tuning.apply(to: [
+        InputEvent(
+            sequenceNumber: 3,
+            timestampNanos: 116_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 1, dy: 0))
+        ),
+    ], state: &state)
+
+    #expect(slowAfterPause == [
+        InputEvent(
+            sequenceNumber: 3,
+            timestampNanos: 116_000_000,
+            kind: .pointerMove(PointerMoveEvent(dx: 1.75, dy: 0))
         ),
     ])
 }

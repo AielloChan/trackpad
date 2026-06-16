@@ -18,6 +18,8 @@
 - [x] Replace the ad hoc `scrollMomentumSettings` send path with full configuration sync.
 - [x] Update docs and TODOs to describe logical channels and LWW config sync.
 - [x] Move visible tuning controls to the macOS host app and keep the iOS connected bar status-only.
+- [x] Add exact numeric inputs beside the macOS host tuning sliders.
+- [x] Add explicit JSON save/load for macOS host tuning configuration without auto-saving every live change.
 
 ## Verification
 

@@ -6,6 +6,7 @@ import TrackpadKit
 
 public final class TrackpadHostClient: @unchecked Sendable {
     public var inputSendFailureHandler: (@Sendable (String) -> Void)?
+    public var connectionClosedHandler: (@Sendable (String) -> Void)?
     public var pathUpdateHandler: (@Sendable (NetworkPathSnapshot) -> Void)?
     public var connectionAttemptHandler: (@Sendable (TrackpadConnectionAttemptDiagnostic) -> Void)?
     public var inputReportDiagnosticHandler: (@Sendable (String) -> Void)?
@@ -261,6 +262,7 @@ public final class TrackpadHostClient: @unchecked Sendable {
                         self.finishAllLatencyProbes(result: .failure(error))
                         connection.cancel()
                         self.connection = nil
+                        self.connectionClosedHandler?(String(describing: error))
                         return
                     }
                 }
@@ -268,12 +270,14 @@ public final class TrackpadHostClient: @unchecked Sendable {
                 if let error {
                     self.finishAllLatencyProbes(result: .failure(error))
                     self.connection = nil
+                    self.connectionClosedHandler?(String(describing: error))
                     return
                 }
 
                 if isComplete {
                     self.finishAllLatencyProbes(result: .failure(TrackpadHostClientError.cancelled))
                     self.connection = nil
+                    self.connectionClosedHandler?(String(describing: TrackpadHostClientError.cancelled))
                     return
                 }
 
@@ -291,6 +295,9 @@ public final class TrackpadHostClient: @unchecked Sendable {
             finishLatencyProbe(id: pong.id, result: .success(roundTripSeconds))
         case .rejected:
             finishAllLatencyProbes(result: .failure(TrackpadHostClientError.cancelled))
+            connection?.cancel()
+            connection = nil
+            connectionClosedHandler?("Rejected by host")
         case .hostLogRequest(let request):
             sendClientLogUpload(for: request)
         case .configurationSync(let snapshot):

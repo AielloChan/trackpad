@@ -14,7 +14,7 @@ public struct TrackpadConfiguration: Codable, Equatable, Sendable {
     }
 
     public static let defaults = TrackpadConfiguration(
-        pointer: PointerConfiguration(speedMultiplier: 2.1),
+        pointer: PointerConfiguration(speedMultiplier: 1.75),
         gestures: GestureConfiguration(
             tapMaximumDurationMilliseconds: 250,
             tapDragMaximumIntervalMilliseconds: 140,
@@ -22,14 +22,18 @@ public struct TrackpadConfiguration: Codable, Equatable, Sendable {
         ),
         scrollMomentum: ScrollMomentumSettings(
             amount: 5,
-            decayRate: 0.95,
+            decayRate: 0.945,
             tailWindowMilliseconds: 140
         )
     )
 
     public func withPointerSpeedMultiplier(_ speedMultiplier: Double) -> TrackpadConfiguration {
+        withPointerConfiguration(pointer.withSpeedMultiplier(speedMultiplier))
+    }
+
+    public func withPointerConfiguration(_ pointer: PointerConfiguration) -> TrackpadConfiguration {
         TrackpadConfiguration(
-            pointer: PointerConfiguration(speedMultiplier: speedMultiplier),
+            pointer: pointer,
             gestures: gestures,
             scrollMomentum: scrollMomentum
         )
@@ -67,6 +71,9 @@ public struct TrackpadConfiguration: Codable, Equatable, Sendable {
 
 public enum TrackpadConfigurationLimits {
     public static let pointerSpeedMultiplier: ClosedRange<Double> = 0.2...10
+    public static let pointerAccelerationMaximumMultiplier: ClosedRange<Double> = 0.2...10
+    public static let pointerAccelerationStartVelocity: ClosedRange<Double> = 0...2_000
+    public static let pointerAccelerationEndVelocity: ClosedRange<Double> = 50...5_000
     public static let scrollMomentumAmount: ClosedRange<Double> = 0...12
     public static let scrollMomentumDecayRate: ClosedRange<Double> = 0.72...0.995
     public static let scrollMomentumTailWindowMilliseconds: ClosedRange<Double> = 30...500
@@ -77,9 +84,46 @@ public enum TrackpadConfigurationLimits {
 
 public struct PointerConfiguration: Codable, Equatable, Sendable {
     public let speedMultiplier: Double
+    public let accelerationMaximumMultiplier: Double
+    public let accelerationStartVelocity: Double
+    public let accelerationEndVelocity: Double
 
-    public init(speedMultiplier: Double) {
+    public init(
+        speedMultiplier: Double,
+        accelerationMaximumMultiplier: Double = 3.0,
+        accelerationStartVelocity: Double = 120,
+        accelerationEndVelocity: Double = 900
+    ) {
         self.speedMultiplier = speedMultiplier
+        self.accelerationMaximumMultiplier = accelerationMaximumMultiplier
+        self.accelerationStartVelocity = accelerationStartVelocity
+        self.accelerationEndVelocity = accelerationEndVelocity
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        speedMultiplier = try container.decode(Double.self, forKey: .speedMultiplier)
+        accelerationMaximumMultiplier = try container.decodeIfPresent(
+            Double.self,
+            forKey: .accelerationMaximumMultiplier
+        ) ?? 3.0
+        accelerationStartVelocity = try container.decodeIfPresent(
+            Double.self,
+            forKey: .accelerationStartVelocity
+        ) ?? 120
+        accelerationEndVelocity = try container.decodeIfPresent(
+            Double.self,
+            forKey: .accelerationEndVelocity
+        ) ?? 900
+    }
+
+    public func withSpeedMultiplier(_ speedMultiplier: Double) -> PointerConfiguration {
+        PointerConfiguration(
+            speedMultiplier: speedMultiplier,
+            accelerationMaximumMultiplier: accelerationMaximumMultiplier,
+            accelerationStartVelocity: accelerationStartVelocity,
+            accelerationEndVelocity: accelerationEndVelocity
+        )
     }
 }
 

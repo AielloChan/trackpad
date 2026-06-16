@@ -40,7 +40,7 @@ public final class HostEventProcessor: @unchecked Sendable {
         if !configuration.scrollMomentum.isEnabled {
             cancelScheduledMomentum()
         }
-        logger.info(category: "config", "applied pointer=\(configuration.pointer.speedMultiplier) momentumEnabled=\(configuration.scrollMomentum.isEnabled) momentum=\(configuration.scrollMomentum.amount) decay=\(configuration.scrollMomentum.decayRate) tailMs=\(configuration.scrollMomentum.tailWindowMilliseconds)")
+        logger.info(category: "config", "applied pointer=\(configuration.pointer.speedMultiplier) pointerMax=\(configuration.pointer.accelerationMaximumMultiplier) pointerStart=\(configuration.pointer.accelerationStartVelocity) pointerEnd=\(configuration.pointer.accelerationEndVelocity) momentumEnabled=\(configuration.scrollMomentum.isEnabled) momentum=\(configuration.scrollMomentum.amount) decay=\(configuration.scrollMomentum.decayRate) tailMs=\(configuration.scrollMomentum.tailWindowMilliseconds)")
     }
 
     public func updateScrollMomentumSettings(_ settings: ScrollMomentumSettings) {

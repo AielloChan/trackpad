@@ -31,6 +31,8 @@ public struct MacScrollMomentumSynthesizer: Sendable {
     public let minimumStepDelta: Double
     public let maximumStepCount: Int
     public let frameIntervalNanos: UInt64
+    public let minimumMomentumBaseFrameDelta: Double
+    public let fullMomentumBaseFrameDelta: Double
 
     private var samples: [ScrollSample] = []
     private var momentumState: MomentumState?
@@ -54,7 +56,9 @@ public struct MacScrollMomentumSynthesizer: Sendable {
         minimumInitialDelta: Double = 1.2,
         minimumStepDelta: Double = 0.2,
         maximumStepCount: Int = 180,
-        frameIntervalNanos: UInt64 = MacScrollMomentumSynthesizer.preferredFrameIntervalNanos()
+        frameIntervalNanos: UInt64 = MacScrollMomentumSynthesizer.preferredFrameIntervalNanos(),
+        minimumMomentumBaseFrameDelta: Double = 4,
+        fullMomentumBaseFrameDelta: Double = 16
     ) {
         self.settings = settings
         self.maximumInitialDelta = maximumInitialDelta
@@ -62,6 +66,8 @@ public struct MacScrollMomentumSynthesizer: Sendable {
         self.minimumStepDelta = minimumStepDelta
         self.maximumStepCount = maximumStepCount
         self.frameIntervalNanos = frameIntervalNanos
+        self.minimumMomentumBaseFrameDelta = minimumMomentumBaseFrameDelta
+        self.fullMomentumBaseFrameDelta = fullMomentumBaseFrameDelta
     }
 
     public mutating func updateSettings(_ settings: ScrollMomentumSettings) {
@@ -280,13 +286,25 @@ public struct MacScrollMomentumSynthesizer: Sendable {
 
         let sampleSpanNanos = max(lastTimestamp - firstTimestamp + Self.baseFrameIntervalNanos, Self.baseFrameIntervalNanos)
         let averageBaseFrameDelta = stableTotal / Double(sampleSpanNanos) * Double(Self.baseFrameIntervalNanos)
-        let scaledDelta = averageBaseFrameDelta * amount
+        let releaseRamp = momentumRamp(forBaseFrameDelta: abs(averageBaseFrameDelta))
+        guard releaseRamp > 0 else {
+            return nil
+        }
+
+        let scaledDelta = averageBaseFrameDelta * amount * releaseRamp
         guard abs(scaledDelta) >= minimumInitialDelta else {
             return nil
         }
 
         let clampedFrameDelta = scaledDelta.clampedMagnitude(to: maximumInitialDelta)
         return clampedFrameDelta / seconds(from: Self.baseFrameIntervalNanos)
+    }
+
+    private func momentumRamp(forBaseFrameDelta baseFrameDelta: Double) -> Double {
+        let start = max(0, minimumMomentumBaseFrameDelta)
+        let end = max(fullMomentumBaseFrameDelta, start + 1)
+        let progress = min(max((baseFrameDelta - start) / (end - start), 0), 1)
+        return progress * progress * (3 - 2 * progress)
     }
 
     private func scrollCommand(axis: Axis, delta: Double, momentumPhase: ScrollPhase) -> MacInputCommand {

@@ -23,6 +23,7 @@ Phase 1 is functionally usable for local LAN testing:
 - QR-code pairing from the macOS host app to the iOS client.
 - Six-digit pairing gate before input is processed.
 - JSONL-backed trusted-client auto pairing after a successful short-code pairing.
+- iOS auto-connects to a discovered trusted Bonjour host while disconnected, retries up to three times, and stays manual-only after the user disconnects from the connected bar during the current app session.
 - Single-finger pointer movement.
 - Single-finger tap for left click.
 - Tap, quick second press, and movement for drag.
@@ -36,7 +37,8 @@ Phase 1 is functionally usable for local LAN testing:
 - Client-side latency, touch sample rate, and sent event rate display.
 - Active connection path display for Wi-Fi, cellular, wired/cable-like, and constrained paths.
 - Initial wired-only TCP connection attempt before default TCP fallback when the system exposes a cable-like path.
-- Live tuning sliders in the macOS host app for pointer speed, scroll momentum amount/decay/tail window, and gesture timing. Scroll momentum tuning supports a wide range for matching native trackpad inertial distance.
+- Live tuning tabs in the macOS host app for pointer speed/acceleration, scroll momentum amount/decay/tail window, and gesture timing. Pointer acceleration is calculated from the recent movement window so it can speed up or slow down while a finger remains on the surface. Slider values also have exact numeric fields for precise tuning.
+- Explicit macOS host configuration save/load through `~/Library/Application Support/Trackpad/host_configuration.json`; tuning changes are live but are not persisted until `Save Configuration` is clicked.
 - iOS sends high-frequency input as compact HID-like 32-byte binary reports.
 - iOS and macOS sync tuning settings through a low-frequency configuration control channel.
 - Pending pointer and compatible scroll changed reports are coalesced while a previous send is still in flight.

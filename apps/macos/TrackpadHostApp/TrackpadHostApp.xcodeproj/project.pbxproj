@@ -13,6 +13,7 @@
 		200000000000000000000019 /* HostAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20000000000000000000001A /* HostAppModel.swift */; };
 		300000000000000000000101 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 300000000000000000000102 /* Assets.xcassets */; };
 		310000000000000000000001 /* PairingQRCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 310000000000000000000002 /* PairingQRCodeView.swift */; };
+		320000000000000000000001 /* ConfigurationValueField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 320000000000000000000002 /* ConfigurationValueField.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -22,6 +23,7 @@
 		20000000000000000000001A /* HostAppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostAppModel.swift; sourceTree = "<group>"; };
 		300000000000000000000102 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		310000000000000000000002 /* PairingQRCodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingQRCodeView.swift; sourceTree = "<group>"; };
+		320000000000000000000002 /* ConfigurationValueField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigurationValueField.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +76,7 @@
 		20000000000000000000000D /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				320000000000000000000002 /* ConfigurationValueField.swift */,
 				200000000000000000000004 /* HostStatusView.swift */,
 				310000000000000000000002 /* PairingQRCodeView.swift */,
 			);
@@ -158,6 +161,7 @@
 				200000000000000000000019 /* HostAppModel.swift in Sources */,
 				200000000000000000000003 /* HostStatusView.swift in Sources */,
 				310000000000000000000001 /* PairingQRCodeView.swift in Sources */,
+				320000000000000000000001 /* ConfigurationValueField.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -15,6 +15,8 @@ struct HostStatusView: View {
 
             configurationControls
 
+            configurationActions
+
             HStack {
                 Button("Request Permission") {
                     model.requestPermission()
@@ -53,6 +55,15 @@ struct HostStatusView: View {
         .padding(24)
         .frame(width: 620)
         .onChange(of: model.pointerSpeedMultiplier) { _, _ in
+            model.syncConfigurationFromControls()
+        }
+        .onChange(of: model.pointerAccelerationMaximumMultiplier) { _, _ in
+            model.syncConfigurationFromControls()
+        }
+        .onChange(of: model.pointerAccelerationStartVelocity) { _, _ in
+            model.syncConfigurationFromControls()
+        }
+        .onChange(of: model.pointerAccelerationEndVelocity) { _, _ in
             model.syncConfigurationFromControls()
         }
         .onChange(of: model.isScrollMomentumEnabled) { _, _ in
@@ -116,9 +127,14 @@ struct HostStatusView: View {
             statusRow("Events", "\(model.status.handledEventCount)", .secondary)
             statusRow("Log File", model.logFilePath, .secondary)
             statusRow("Client Logs", clientLogDirectoryPath, .secondary)
+            statusRow("Config File", model.configurationFilePath, .secondary)
 
             if let clientLogRequestStatus = model.clientLogRequestStatus {
                 statusRow("Log Request", clientLogRequestStatus, .secondary)
+            }
+
+            if let configurationSaveStatus = model.configurationSaveStatus {
+                statusRow("Config", configurationSaveStatus, .secondary)
             }
 
             if let lastError = model.status.lastError {
@@ -128,14 +144,77 @@ struct HostStatusView: View {
     }
 
     private var configurationControls: some View {
+        TabView {
+            pointerControls
+                .tabItem {
+                    Text("Pointer")
+                }
+
+            scrollControls
+                .tabItem {
+                    Text("Scroll")
+                }
+
+            gestureControls
+                .tabItem {
+                    Text("Gestures")
+                }
+        }
+        .frame(height: 180)
+    }
+
+    private var configurationActions: some View {
+        HStack(spacing: 12) {
+            Button("Save Configuration") {
+                model.saveConfiguration()
+            }
+
+            Text(model.configurationSaveStatus ?? "Configuration is not auto-saved")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var pointerControls: some View {
         Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
             configurationSlider(
-                "Pointer",
+                "Base",
                 value: $model.pointerSpeedMultiplier,
                 range: TrackpadConfigurationLimits.pointerSpeedMultiplier,
-                step: 0.1,
-                text: String(format: "%.1fx", model.pointerSpeedMultiplier)
+                step: 0.05,
+                fractionDigits: 2,
+                unit: "x"
             )
+            configurationSlider(
+                "Fast",
+                value: $model.pointerAccelerationMaximumMultiplier,
+                range: TrackpadConfigurationLimits.pointerAccelerationMaximumMultiplier,
+                step: 0.05,
+                fractionDigits: 2,
+                unit: "x"
+            )
+            configurationSlider(
+                "Accel Start",
+                value: $model.pointerAccelerationStartVelocity,
+                range: TrackpadConfigurationLimits.pointerAccelerationStartVelocity,
+                step: 10,
+                fractionDigits: 0,
+                unit: "pt/s"
+            )
+            configurationSlider(
+                "Accel End",
+                value: $model.pointerAccelerationEndVelocity,
+                range: TrackpadConfigurationLimits.pointerAccelerationEndVelocity,
+                step: 10,
+                fractionDigits: 0,
+                unit: "pt/s"
+            )
+        }
+        .padding(.top, 8)
+    }
+
+    private var scrollControls: some View {
+        Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
             GridRow {
                 Text("Momentum")
                     .foregroundStyle(.secondary)
@@ -149,44 +228,57 @@ struct HostStatusView: View {
                 value: $model.scrollMomentumAmount,
                 range: TrackpadConfigurationLimits.scrollMomentumAmount,
                 step: 0.1,
-                text: String(format: "%.1fx", model.scrollMomentumAmount)
+                fractionDigits: 1,
+                unit: "x"
             )
             configurationSlider(
                 "Decel",
                 value: $model.scrollMomentumDecayRate,
                 range: TrackpadConfigurationLimits.scrollMomentumDecayRate,
                 step: 0.005,
-                text: String(format: "%.3f", model.scrollMomentumDecayRate)
+                fractionDigits: 3,
+                unit: ""
             )
             configurationSlider(
                 "Tail",
                 value: $model.scrollMomentumTailWindowMilliseconds,
                 range: TrackpadConfigurationLimits.scrollMomentumTailWindowMilliseconds,
                 step: 10,
-                text: "\(Int(model.scrollMomentumTailWindowMilliseconds.rounded())) ms"
+                fractionDigits: 0,
+                unit: "ms"
             )
+        }
+        .padding(.top, 8)
+    }
+
+    private var gestureControls: some View {
+        Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
             configurationSlider(
                 "Tap",
                 value: $model.tapMaximumDurationMilliseconds,
                 range: TrackpadConfigurationLimits.tapMaximumDurationMilliseconds,
                 step: 10,
-                text: "\(Int(model.tapMaximumDurationMilliseconds.rounded())) ms"
+                fractionDigits: 0,
+                unit: "ms"
             )
             configurationSlider(
                 "Drag",
                 value: $model.tapDragMaximumIntervalMilliseconds,
                 range: TrackpadConfigurationLimits.tapDragMaximumIntervalMilliseconds,
                 step: 10,
-                text: "\(Int(model.tapDragMaximumIntervalMilliseconds.rounded())) ms"
+                fractionDigits: 0,
+                unit: "ms"
             )
             configurationSlider(
                 "Scroll Guard",
                 value: $model.scrollReleaseTapSuppressionMilliseconds,
                 range: TrackpadConfigurationLimits.scrollReleaseTapSuppressionMilliseconds,
                 step: 10,
-                text: "\(Int(model.scrollReleaseTapSuppressionMilliseconds.rounded())) ms"
+                fractionDigits: 0,
+                unit: "ms"
             )
         }
+        .padding(.top, 8)
     }
 
     private func configurationSlider(
@@ -194,18 +286,24 @@ struct HostStatusView: View {
         value: Binding<Double>,
         range: ClosedRange<Double>,
         step: Double,
-        text: String
+        fractionDigits: Int,
+        unit: String
     ) -> some View {
         GridRow {
             Text(label)
                 .foregroundStyle(.secondary)
                 .frame(width: 92, alignment: .leading)
             Slider(value: value, in: range, step: step)
-                .frame(width: 340)
-            Text(text)
+                .frame(width: 300)
+            ConfigurationValueField(
+                value: value,
+                range: range,
+                fractionDigits: fractionDigits
+            )
+            Text(unit)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
-                .frame(width: 72, alignment: .trailing)
+                .frame(width: 34, alignment: .leading)
         }
     }
 

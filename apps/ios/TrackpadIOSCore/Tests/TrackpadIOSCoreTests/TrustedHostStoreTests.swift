@@ -21,6 +21,7 @@ import TrackpadKit
 
     try store.save(key, for: configuration, timestampNanos: 1_500)
 
+    #expect(try store.hasClientKey(for: configuration))
     #expect(try store.clientKey(for: configuration, timestampNanos: 2_000) == "client-key")
 
     let storedLines = try String(contentsOf: fileURL, encoding: .utf8)
@@ -65,6 +66,7 @@ import TrackpadKit
 
     try store.save(key, for: qrConfiguration, timestampNanos: 1_500)
 
+    #expect(try store.hasClientKey(for: bonjourConfiguration))
     #expect(try store.clientKey(for: bonjourConfiguration, timestampNanos: 2_000) == "client-key")
 }
 
@@ -96,8 +98,27 @@ import TrackpadKit
 
     try store.save(key, for: legacyConfiguration, timestampNanos: 1_500)
 
+    #expect(try store.hasClientKey(for: bonjourConfiguration))
     #expect(try store.clientKey(for: bonjourConfiguration, timestampNanos: 2_000) == "legacy-client-key")
     #expect(try store.clientKey(for: bonjourConfiguration, timestampNanos: 2_500) == "legacy-client-key")
+}
+
+@Test func trustedHostStoreReportsMissingClientKeyWithoutCreatingRecords() throws {
+    let fileURL = temporaryTrustedHostFileURL()
+    let store = TrustedHostStore(fileURL: fileURL)
+    let configuration = TrackpadConnectionConfiguration(
+        address: .bonjour(
+            name: "Unknown Host",
+            type: TrackpadDiscoveryDefaults.bonjourType,
+            domain: TrackpadDiscoveryDefaults.bonjourDomain
+        ),
+        pairingCode: "",
+        deviceId: "ios-1",
+        deviceName: "Alice iPhone"
+    )
+
+    #expect(try store.hasClientKey(for: configuration) == false)
+    #expect(FileManager.default.fileExists(atPath: fileURL.path) == false)
 }
 
 private func temporaryTrustedHostFileURL() -> URL {

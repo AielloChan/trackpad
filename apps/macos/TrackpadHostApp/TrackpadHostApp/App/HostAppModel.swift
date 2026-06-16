@@ -11,6 +11,9 @@ final class HostAppModel: ObservableObject {
     @Published private(set) var pairingQRCodePayload: HostPairingQRCodePayload?
     @Published private(set) var clientLogRequestStatus: String?
     @Published var pointerSpeedMultiplier = TrackpadConfiguration.defaults.pointer.speedMultiplier
+    @Published var pointerAccelerationMaximumMultiplier = TrackpadConfiguration.defaults.pointer.accelerationMaximumMultiplier
+    @Published var pointerAccelerationStartVelocity = TrackpadConfiguration.defaults.pointer.accelerationStartVelocity
+    @Published var pointerAccelerationEndVelocity = TrackpadConfiguration.defaults.pointer.accelerationEndVelocity
     @Published var tapMaximumDurationMilliseconds = TrackpadConfiguration.defaults.gestures.tapMaximumDurationMilliseconds
     @Published var tapDragMaximumIntervalMilliseconds = TrackpadConfiguration.defaults.gestures.tapDragMaximumIntervalMilliseconds
     @Published var scrollReleaseTapSuppressionMilliseconds = TrackpadConfiguration.defaults.gestures.scrollReleaseTapSuppressionMilliseconds
@@ -18,9 +21,11 @@ final class HostAppModel: ObservableObject {
     @Published var scrollMomentumAmount = TrackpadConfiguration.defaults.scrollMomentum.amount
     @Published var scrollMomentumDecayRate = TrackpadConfiguration.defaults.scrollMomentum.decayRate
     @Published var scrollMomentumTailWindowMilliseconds = TrackpadConfiguration.defaults.scrollMomentum.tailWindowMilliseconds
+    @Published private(set) var configurationSaveStatus: String?
 
     private var server: LanHostServer?
     private let logger = FileHostLogger()
+    private let configurationStore = HostConfigurationStore()
     private var configurationSyncState = ConfigurationSyncState(configuration: .defaults)
     private var isApplyingRemoteConfiguration = false
 
@@ -28,7 +33,12 @@ final class HostAppModel: ObservableObject {
         logger.fileURL.path
     }
 
+    var configurationFilePath: String {
+        configurationStore.fileURL.path
+    }
+
     init() {
+        loadSavedConfigurationIfAvailable()
         logger.info(category: "app", "host app model initialized logPath=\(logger.fileURL.path)")
         refreshPairingQRCodePayload()
     }
@@ -134,8 +144,23 @@ final class HostAppModel: ObservableObject {
             return
         }
 
+        configurationSaveStatus = "Unsaved changes"
         server?.updateLocalConfiguration(configuration)
-        logger.info(category: "config", "host local configuration changed pointer=\(configuration.pointer.speedMultiplier) momentumEnabled=\(configuration.scrollMomentum.isEnabled) momentum=\(configuration.scrollMomentum.amount)")
+        logger.info(category: "config", "host local configuration changed pointer=\(configuration.pointer.speedMultiplier) pointerMax=\(configuration.pointer.accelerationMaximumMultiplier) momentumEnabled=\(configuration.scrollMomentum.isEnabled) momentum=\(configuration.scrollMomentum.amount)")
+    }
+
+    func saveConfiguration() {
+        do {
+            try configurationStore.save(
+                currentConfiguration,
+                savedAtNanos: DispatchTime.now().uptimeNanoseconds
+            )
+            configurationSaveStatus = "Saved configuration"
+            logger.info(category: "config", "saved host configuration path=\(configurationStore.fileURL.path)")
+        } catch {
+            configurationSaveStatus = "Save failed"
+            logger.error(category: "config", "save host configuration failed path=\(configurationStore.fileURL.path) error=\(String(describing: error))")
+        }
     }
 
     private func refreshPairingQRCodePayload() {
@@ -144,7 +169,12 @@ final class HostAppModel: ObservableObject {
 
     private var currentConfiguration: TrackpadConfiguration {
         TrackpadConfiguration(
-            pointer: PointerConfiguration(speedMultiplier: pointerSpeedMultiplier),
+            pointer: PointerConfiguration(
+                speedMultiplier: pointerSpeedMultiplier,
+                accelerationMaximumMultiplier: pointerAccelerationMaximumMultiplier,
+                accelerationStartVelocity: pointerAccelerationStartVelocity,
+                accelerationEndVelocity: pointerAccelerationEndVelocity
+            ),
             gestures: GestureConfiguration(
                 tapMaximumDurationMilliseconds: tapMaximumDurationMilliseconds,
                 tapDragMaximumIntervalMilliseconds: tapDragMaximumIntervalMilliseconds,
@@ -171,8 +201,31 @@ final class HostAppModel: ObservableObject {
             return
         }
 
+        applyConfigurationToControls(configuration)
+    }
+
+    private func loadSavedConfigurationIfAvailable() {
+        do {
+            guard let persisted = try configurationStore.load() else {
+                return
+            }
+
+            applyConfigurationToControls(persisted.configuration)
+            configurationSyncState = ConfigurationSyncState(configuration: persisted.configuration)
+            configurationSaveStatus = "Loaded saved configuration"
+            logger.info(category: "config", "loaded host configuration path=\(configurationStore.fileURL.path)")
+        } catch {
+            configurationSaveStatus = "Load failed"
+            logger.error(category: "config", "load host configuration failed path=\(configurationStore.fileURL.path) error=\(String(describing: error))")
+        }
+    }
+
+    private func applyConfigurationToControls(_ configuration: TrackpadConfiguration) {
         isApplyingRemoteConfiguration = true
         pointerSpeedMultiplier = configuration.pointer.speedMultiplier
+        pointerAccelerationMaximumMultiplier = configuration.pointer.accelerationMaximumMultiplier
+        pointerAccelerationStartVelocity = configuration.pointer.accelerationStartVelocity
+        pointerAccelerationEndVelocity = configuration.pointer.accelerationEndVelocity
         tapMaximumDurationMilliseconds = configuration.gestures.tapMaximumDurationMilliseconds
         tapDragMaximumIntervalMilliseconds = configuration.gestures.tapDragMaximumIntervalMilliseconds
         scrollReleaseTapSuppressionMilliseconds = configuration.gestures.scrollReleaseTapSuppressionMilliseconds

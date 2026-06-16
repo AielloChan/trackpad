@@ -38,7 +38,7 @@ struct TouchSurfaceView: View {
             .onDisappear {
                 UIApplication.shared.isIdleTimerDisabled = false
                 model.stopDiscovery()
-                model.disconnect()
+                model.disconnectForLifecycle()
             }
     }
 

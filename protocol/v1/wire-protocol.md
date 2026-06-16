@@ -169,7 +169,10 @@ Current `TrackpadConfiguration` fields:
 
 | Field | Type | Consumer |
 | --- | --- | --- |
-| `pointer.speedMultiplier` | `Double` | iOS pointer event tuning. |
+| `pointer.speedMultiplier` | `Double` | iOS slow pointer baseline tuning. |
+| `pointer.accelerationMaximumMultiplier` | `Double` | iOS fast pointer tuning. |
+| `pointer.accelerationStartVelocity` | `Double` | iOS pointer acceleration curve. |
+| `pointer.accelerationEndVelocity` | `Double` | iOS pointer acceleration curve. |
 | `gestures.tapMaximumDurationMilliseconds` | `Double` | iOS tap recognition. |
 | `gestures.tapDragMaximumIntervalMilliseconds` | `Double` | iOS tap-then-drag recognition. |
 | `gestures.scrollReleaseTapSuppressionMilliseconds` | `Double` | iOS scroll-release tap guard. |
@@ -182,14 +185,19 @@ Current defaults and UI-supported tuning ranges:
 
 | Field | Default | Range |
 | --- | --- | --- |
-| `pointer.speedMultiplier` | `2.1` | `0.2...10` |
+| `pointer.speedMultiplier` | `1.75` | `0.2...10` |
+| `pointer.accelerationMaximumMultiplier` | `3.0` | `0.2...10` |
+| `pointer.accelerationStartVelocity` | `120 pt/s` | `0...2000 pt/s` |
+| `pointer.accelerationEndVelocity` | `900 pt/s` | `50...5000 pt/s` |
 | `gestures.tapMaximumDurationMilliseconds` | `250` | `60...500 ms` |
 | `gestures.tapDragMaximumIntervalMilliseconds` | `140` | `40...250 ms` |
 | `gestures.scrollReleaseTapSuppressionMilliseconds` | `80` | `0...250 ms` |
 | `scrollMomentum.isEnabled` | `true` | `true / false` |
 | `scrollMomentum.amount` | `5.0` | `0...12` |
-| `scrollMomentum.decayRate` | `0.95` | `0.72...0.995` |
+| `scrollMomentum.decayRate` | `0.945` | `0.72...0.995` |
 | `scrollMomentum.tailWindowMilliseconds` | `140` | `30...500 ms` |
+
+The pointer acceleration velocity is measured from the iOS client's recent movement window rather than from time since `contact.began`. Current iOS tuning uses an `80 ms` window and resets velocity state after a `120 ms` gap between pointer samples.
 
 Conflict behavior for the MVP is last-write-wins by arrival order: if the received snapshot value differs from local state, the receiver applies it and updates local controls. If the value is identical, it is ignored and not echoed back.
 

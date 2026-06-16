@@ -17,6 +17,8 @@
 - [x] Add macOS JSONL authorized-client storage and key validation.
 - [x] Persist a generated trusted-client key after successful short-code pairing.
 - [x] Add iOS JSONL trusted-host storage and send the stored key in future `clientHello` frames.
+- [x] Auto-connect the iOS client to discovered trusted Bonjour hosts while disconnected.
+- [x] Retry automatic iOS reconnect up to three times and suppress it after a user-initiated disconnect for the current app session.
 - [x] Update protocol and architecture docs.
 - [x] Verify with unit tests, package tests, and app builds.
 
@@ -28,3 +30,5 @@
 - [x] Build `TrackpadHostApp`.
 - [x] Build `TrackpadIOS` for iOS Simulator.
 - [ ] Manually verify reconnecting a known real iPhone/iPad can skip the current pairing code.
+- [ ] Manually verify a disconnected known iPhone/iPad auto-connects when the trusted Bonjour host is discovered.
+- [ ] Manually verify tapping the connected bar close button disables further auto-connect attempts until the user manually connects or restarts the app.

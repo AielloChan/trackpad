@@ -144,9 +144,36 @@ import Testing
     )))
 }
 
+@Test func trackpadConfigurationDefaultsMatchTunedValues() {
+    #expect(TrackpadConfiguration.defaults.pointer.speedMultiplier == 1.75)
+    #expect(TrackpadConfiguration.defaults.pointer.accelerationMaximumMultiplier == 3)
+    #expect(TrackpadConfiguration.defaults.pointer.accelerationStartVelocity == 120)
+    #expect(TrackpadConfiguration.defaults.pointer.accelerationEndVelocity == 900)
+    #expect(TrackpadConfiguration.defaults.gestures.tapDragMaximumIntervalMilliseconds == 140)
+    #expect(TrackpadConfiguration.defaults.scrollMomentum.amount == 5)
+    #expect(TrackpadConfiguration.defaults.scrollMomentum.decayRate == 0.945)
+}
+
+@Test func pointerConfigurationDecodesMissingAccelerationFieldsAsDefaults() throws {
+    let data = Data("""
+    {
+      "speedMultiplier": 1.75
+    }
+    """.utf8)
+
+    let decoded = try JSONDecoder().decode(PointerConfiguration.self, from: data)
+
+    #expect(decoded == PointerConfiguration(speedMultiplier: 1.75))
+}
+
 @Test func configurationSyncFrameRoundTripsThroughJSON() throws {
     let configuration = TrackpadConfiguration(
-        pointer: PointerConfiguration(speedMultiplier: 2.1),
+        pointer: PointerConfiguration(
+            speedMultiplier: 2.1,
+            accelerationMaximumMultiplier: 3.2,
+            accelerationStartVelocity: 140,
+            accelerationEndVelocity: 1_000
+        ),
         gestures: GestureConfiguration(
             tapMaximumDurationMilliseconds: 250,
             tapDragMaximumIntervalMilliseconds: 140,
